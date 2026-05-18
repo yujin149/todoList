@@ -7,6 +7,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useScheduleStore } from '../stores/schedule'
+import { useHolidays } from '../composables/useHolidays'
 import { formatDate, formatDateLabel, itemYmdSpan, parseYmd } from '../utils/dateUtils'
 import TodoFormModal from './TodoFormModal.vue'
 import CardList from './CardList.vue'
@@ -55,6 +56,21 @@ const visibleItems = computed(() =>
     if (!start) return false
     return selectedDate.value >= start && selectedDate.value <= end
   }),
+)
+
+const selectedYearMonth = computed(() => {
+  const d = parseYmd(selectedDate.value)
+  if (Number.isNaN(d.getTime())) return { year: 0, month: 0 }
+  return { year: d.getFullYear(), month: d.getMonth() + 1 }
+})
+
+const { holidaysOn } = useHolidays(selectedYearMonth)
+
+
+const dayHolidays = computed(() => holidaysOn(selectedDate.value))
+
+const dayHolidayLabel = computed(() =>
+  dayHolidays.value.map((h) => h.name).join(', '),
 )
 
 /** 상단 ◀ ▶ 또는 직접 선택으로 하루 이동 */
@@ -126,17 +142,17 @@ watch(isFormModalOpen, (open) => {
     <div class="titleWrap">
       <div class="titleLine">
         <RouterLink to="/" class="backToCal" title="캘린더로 이동">
-          <svg 
+          <svg
             class="iconBack"
-            viewBox="0 0 16 14" 
-            fill="none" 
+            viewBox="0 0 16 14"
+            fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
-            <path 
-              d="M15 7H1M1 7L7 13M1 7L7 1" 
-              stroke="currentColor" 
-              stroke-width="2" 
-              stroke-linecap="round" 
+            <path
+              d="M15 7H1M1 7L7 13M1 7L7 1"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
               stroke-linejoin="round"
             />
           </svg>
@@ -150,54 +166,66 @@ watch(isFormModalOpen, (open) => {
 
     <div class="contWrap">
       <!-- 기준 날짜(이전/다음/직접 선택) -> visibleItems 필터 -->
-      <div class="dateWrap">
-        <button type="button" class="arrowBtn arrow-prev" @click="moveDate(-1)">
-          <svg
-            class="icon"
-            viewBox="0 0 9 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
+      <div class="dateNav">
+        <div class="dateRow">
+          <button type="button" class="arrowBtn arrow-prev" @click="moveDate(-1)">
+            <svg
+              class="icon"
+              viewBox="0 0 9 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M8 15L1 8L8 1"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            이전 날짜
+          </button>
+          <input
+            id="date"
+            ref="dateInputRef"
+            v-model="selectedDate"
+            type="date"
+            name="date"
+            class="dateInput"
+            @click="openDatePicker"
+            @focus="openDatePicker"
           >
-            <path
-              d="M8 15L1 8L8 1"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          이전 날짜
-        </button>
-        <input
-          id="date"
-          ref="dateInputRef"
-          v-model="selectedDate"
-          type="date"
-          name="date"
-          @click="openDatePicker"
-          @focus="openDatePicker"
-        >
-        <button type="button" class="arrowBtn arrow-next" @click="moveDate(1)">
-          <svg
-            class="icon"
-            viewBox="0 0 9 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M1 1L8 8L1 15"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          다음 날짜
-        </button>
+          <button type="button" class="arrowBtn arrow-next" @click="moveDate(1)">
+            <svg
+              class="icon"
+              viewBox="0 0 9 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M1 1L8 8L1 15"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            다음 날짜
+          </button>
+        </div>
+        <p v-if="dayHolidayLabel" class="holidayCaption">{{ dayHolidayLabel }}</p>
       </div>
 
-      <!-- 해당 날짜에 걸리는 일정만 -->
-      <CardList :items="visibleItems" @select="openDetailModal" @toggle-complete="onToggleComplete" />
+      <div class="listBlock">
+        <!-- 해당 날짜에 걸리는 일정만 -->
+        <CardList
+          v-if="visibleItems.length"
+          :items="visibleItems"
+          @select="openDetailModal"
+          @toggle-complete="onToggleComplete"
+        />
+        <p v-else class="listEmpty">등록된 일정이 없습니다.</p>
+      </div>
     </div>
   </div>
   <!-- 등록(null) / 수정(item) 공용 -->
@@ -244,15 +272,14 @@ watch(isFormModalOpen, (open) => {
   display: flex;
   justify-content: center;
   align-items: center;
-  width:3rem;
-  height:4rem;
+  width: 3rem;
+  height: 4rem;
 }
-.backToCal .iconBack{
-  width:1.6rem;
-  height:1.4rem;
-  color:var(--color-gray-900);
+.backToCal .iconBack {
+  width: 1.6rem;
+  height: 1.4rem;
+  color: var(--color-gray-900);
 }
-
 
 .titleWrap .title {
   font-size: 1.6rem;
@@ -285,31 +312,39 @@ watch(isFormModalOpen, (open) => {
   padding: 0 2rem 2rem;
 }
 
-.dateWrap {
+.dateNav {
+  padding: 2rem 0 1.2rem;
+  position:relative;
+}
+
+.dateRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 2rem 0 1rem;
   gap: 1rem;
 }
 
-.dateWrap input[type='date'] {
+.dateInput {
   position: relative;
+  flex: 1;
+  min-width: 0;
   border: none;
   font-size: 1.7rem;
   text-align: center;
-  width: calc(100% - 8rem);
   cursor: pointer;
   font-weight: 700;
+  color: var(--color-gray-900);
+  background: transparent;
 }
 
-.dateWrap input[type='date']::-webkit-calendar-picker-indicator {
+.dateInput::-webkit-calendar-picker-indicator {
   display: none;
 }
 
-.dateWrap .arrowBtn {
+.dateRow .arrowBtn {
   font-size: 0;
   letter-spacing: -9999px;
+  flex: none;
   width: 3rem;
   height: 3rem;
   display: flex;
@@ -317,9 +352,36 @@ watch(isFormModalOpen, (open) => {
   align-items: center;
 }
 
-.dateWrap .icon {
+.dateRow .icon {
   color: var(--color-gray-900);
   width: 0.9rem;
-  height: 1.6rem;
+  height: 1.3rem;
+}
+
+.holidayCaption {
+  margin: 0.5rem 0 0;
+  padding: 0 0.5rem;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #d9363e;
+  position:absolute;
+  bottom:0.5rem;
+  left:50%;
+  transform: translateX(-50%);
+}
+
+.listBlock {
+  margin-top: 0.4rem;
+}
+
+.listEmpty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 1.4rem;
+  color: var(--color-gray-500);
+  border: 0.1rem solid var(--color-border);
 }
 </style>

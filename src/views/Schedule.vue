@@ -7,12 +7,14 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useScheduleStore } from '../stores/schedule'
+import { useHolidays } from '../composables/useHolidays'
 import Menu from '../components/ui/menu.vue'
 import {
   clampPriority,
   dateRangeOverlap,
   formatDate,
   normalizeYmd,
+  parseYmd,
   totalSpanDays,
 } from '../utils/dateUtils'
 
@@ -28,6 +30,8 @@ let gridResizeObserver = null
 const now = new Date()
 const viewYear = ref(now.getFullYear())
 const viewMonth = ref(now.getMonth() + 1)
+const viewYearMonth = computed(() => ({ year: viewYear.value, month: viewMonth.value }))
+const { holidayNames } = useHolidays(viewYearMonth)
 
 const weekLabels = ['일', '월', '화', '수', '목', '금', '토']
 const todayYmd = computed(() => formatDate(new Date()))
@@ -53,13 +57,46 @@ function getCategoryStyle(categoryId) {
   }
 }
 
+/** 일정 우선순위(1~4)보다 낮음 — 레인 배치 시 맨 아래 */
+const HOLIDAY_PRIORITY = 99
+
+const HOLIDAY_BAR_STYLE = {
+  color: '#d9363e',
+  backgroundColor: 'rgba(217, 54, 62, 0.1)',
+}
+
+function getEventBarStyle(seg) {
+  if (seg.isHoliday) return HOLIDAY_BAR_STYLE
+  return getCategoryStyle(seg.categoryId)
+}
+
+/** 같은 name 이고 날짜가 하루씩 이어지면 하나의 구간으로 합침 (추석 24~26 등) */
+function mergeConsecutiveHolidays(holidayMap) {
+  const entries = [...holidayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  const merged = []
+  for (const [iso, name] of entries) {
+    const prev = merged[merged.length - 1]
+    if (prev && prev.name === name) {
+      const nextOfPrev = parseYmd(prev.to)
+      nextOfPrev.setDate(nextOfPrev.getDate() + 1)
+      if (formatDate(nextOfPrev) === iso) {
+        prev.to = iso
+        continue
+      }
+    }
+    merged.push({ from: iso, to: iso, name })
+  }
+  return merged
+}
+
 function assignGlobalLanes(events) {
   const ordered = [...events].sort(
     (a, b) =>
+      Number(!!a.isHoliday) - Number(!!b.isHoliday) ||
       b.sortSpan - a.sortSpan ||
       a.sortStart.localeCompare(b.sortStart) ||
       a.priority - b.priority ||
-      a.id - b.id,
+      String(a.id).localeCompare(String(b.id)),
   )
   const lanes = []
   const laneById = new Map()
@@ -160,6 +197,22 @@ const weeks = computed(() => {
       completed: !!it.completed,
       text: (it.title && String(it.title).trim()) || '일정',
       categoryId: it.categoryId ?? null,
+      isHoliday: false,
+    })
+  }
+  for (const range of mergeConsecutiveHolidays(holidayNames.value)) {
+    if (range.to < gMin || range.from > gMax) continue
+    monthEvents.push({
+      id: `h:${range.from}:${range.to}:${range.name}`,
+      from: range.from,
+      to: range.to,
+      sortSpan: totalSpanDays(range.from, range.to),
+      sortStart: range.from,
+      priority: HOLIDAY_PRIORITY,
+      completed: false,
+      text: range.name,
+      categoryId: null,
+      isHoliday: true,
     })
   }
   const { laneById } = assignGlobalLanes(monthEvents)
@@ -196,6 +249,7 @@ const weeks = computed(() => {
         priority: ev.priority,
         completed: ev.completed,
         categoryId: ev.categoryId,
+        isHoliday: !!ev.isHoliday,
       })
     }
     segs.sort((a, b) => a.laneIndex - b.laneIndex || a.startCol - b.startCol || a.id - b.id)
@@ -231,7 +285,7 @@ const weeks = computed(() => {
 })
 
 watch(
-  () => [store.items.length, viewYear.value, viewMonth.value],
+  () => [store.items.length, viewYear.value, viewMonth.value, holidayNames.value.size],
   () => nextTick(() => recalcVisibleLaneCapacity()),
 )
 
@@ -244,6 +298,10 @@ function dowClass(d) {
   if (dow === 0) return 'dow-sun'
   if (dow === 6) return 'dow-sat'
   return 'dow-mid'
+}
+
+function isHoliday(iso) {
+  return holidayNames.value.has(iso)
 }
 
 function onPrevMonth() {
@@ -415,7 +473,11 @@ function onSelectCategory(categoryId) {
               class="cell"
               :class="[
                 dowClass(day.d),
-                { 'is-out': !isInViewMonth(day.d), 'is-today': day.iso === todayYmd },
+                {
+                  'is-out': !isInViewMonth(day.d),
+                  'is-today': day.iso === todayYmd,
+                  'is-holiday': isHoliday(day.iso),
+                },
               ]"
               @click="onDayCell(day.d)"
             >
@@ -432,10 +494,13 @@ function onSelectCategory(categoryId) {
                 v-for="seg in lane"
                 :key="seg.id"
                 class="evBar"
-                :class="{ 'evBar--done': seg.completed }"
+                :class="{
+                  'evBar--done': seg.completed && !seg.isHoliday,
+                  'evBar--holiday': seg.isHoliday,
+                }"
                 :style="{
                   gridColumn: `${seg.startCol + 1} / ${seg.endCol + 2}`,
-                  ...getCategoryStyle(seg.categoryId),
+                  ...getEventBarStyle(seg),
                 }"
               >
                 <span class="evBarText">{{ seg.text }}</span>
@@ -723,6 +788,18 @@ function onSelectCategory(categoryId) {
 }
 .dow-sat {
   color: #1e6fd9;
+}
+
+/* 공휴일: 일요일과 동일하게 날짜 숫자 빨간색 (토요일 공휴일 포함) */
+.cell.is-holiday:not(.is-out) {
+  color: #d9363e;
+}
+.cell.is-holiday.dow-sat:not(.is-out) {
+  color: #d9363e;
+}
+
+.evBar--holiday {
+  pointer-events: none;
 }
 
 .dNum {

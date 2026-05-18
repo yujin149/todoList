@@ -257,7 +257,7 @@ function removeCategory(category) {
 }
 
 .menuList li.is-active{
-  background: var(--item-active-bg, var(--color-gray-100));
+  background: var(--color-gray-100);
   border-radius: 0.6rem;;
 }
 
@@ -278,7 +278,7 @@ function removeCategory(category) {
 }
 
 .menuList li.is-active .menuItemBtn{
-  color: var(--item-active-color, var(--color-gray-900));
+  color: var(--color-gray-900);
   font-weight:700;
 }
 
