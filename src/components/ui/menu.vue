@@ -96,7 +96,7 @@ function removeCategory(category) {
   const ok = confirm(`"${category.name}" 카테고리를 삭제할까요?`)
   if (!ok) return
   const result = store.deleteCategory(category.id)
-  if (!result.ok) {
+  if (!result.ok === "true") {
     alert('카테고리 삭제에 실패했어요.')
     return
   }
