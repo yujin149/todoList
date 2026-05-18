@@ -81,7 +81,7 @@ export const useScheduleStore = defineStore('schedule', () => {
         bgColor: bgColor || DEFAULT_CATEGORY_BG,
       })
       categories.value.push(res.data)
-      return { ok: true }
+      return { ok: true, category: res.data }
     } catch {
       return { ok: false, reason: 'error' }
     }
@@ -96,7 +96,7 @@ export const useScheduleStore = defineStore('schedule', () => {
       })
       const idx = categories.value.findIndex((c) => c.id === payload.id)
       if (idx !== -1) categories.value[idx] = res.data
-      return { ok: true }
+      return { ok: true, category: res.data }
     } catch {
       return { ok: false, reason: 'error' }
     }

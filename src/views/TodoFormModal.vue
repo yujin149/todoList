@@ -6,6 +6,7 @@
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import DateRangePicker from '../components/DateRangePicker.vue'
+import CategoryFormModal from '../components/ui/CategoryFormModal.vue'
 import ModalLayout from '../components/ui/ModalLayout.vue'
 import { useScheduleStore } from '../stores/schedule'
 import { formatDate } from '../utils/dateUtils'
@@ -42,7 +43,22 @@ const priorityOptions = [
 ]
 const priority = ref(priorityOptions[2].value)
 const categoryId = ref('')
+const showCategoryModal = ref(false)
 const titleInputRef = ref(null)
+
+function openAddCategoryModal() {
+  if (store.categories.length >= store.MAX_CATEGORIES) {
+    alert(`카테고리는 최대 ${store.MAX_CATEGORIES}개까지 추가할 수 있어요.`)
+    return
+  }
+  showCategoryModal.value = true
+}
+
+function onCategorySaved({ category }) {
+  if (category?.id != null) {
+    categoryId.value = String(category.id)
+  }
+}
 
 /** 「오늘」 버튼: 시작·종료 모두 오늘 */
 function setTodayDateRange() {
@@ -173,12 +189,15 @@ function close() {
       </li>
       <li>
         <p class="fieldTitle">카테고리</p>
-        <select v-model="categoryId" name="category" id="category">
-          <option value="">미분류 (기본)</option>
-          <option v-for="category in store.categories" :key="category.id" :value="String(category.id)">
-            {{ category.name }}
-          </option>
-        </select>
+        <div class="categoryList">
+          <select v-model="categoryId" name="category" id="category">
+            <option value="">미분류 (기본)</option>
+            <option v-for="category in store.categories" :key="category.id" :value="String(category.id)">
+              {{ category.name }}
+            </option>
+          </select>
+          <button type="button" @click="openAddCategoryModal">추가</button>
+        </div>
       </li>
       <li>
         <div class="fieldTitle-date">
@@ -200,6 +219,8 @@ function close() {
       <button type="button" class="closeBtn commBtn" @click="close">닫기</button>
     </template>
   </ModalLayout>
+
+  <CategoryFormModal v-model:open="showCategoryModal" mode="add" @saved="onCategorySaved" />
 </template>
 
 <style scoped>
@@ -218,6 +239,29 @@ function close() {
 .formList li .fieldTitle {
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+.formList li .categoryList {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap:1rem;
+}
+.formList li .categoryList button{
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width:4rem;
+  height:4rem;
+  border:1px solid var(--color-border);
+  border-radius: 0.4rem;
+  color: var(--color-gray-500);
+}
+.formList li .categoryList button:hover{
+  background: var(--color-point);
+  color:var(--color-white);
+  border-color:var(--color-point);
 }
 
 .formList li .fieldTitle-date {
