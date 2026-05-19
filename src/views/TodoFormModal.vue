@@ -3,6 +3,7 @@
  * 일정 등록·수정·삭제 모달
  * - v-model:open 과 item(null=등록 / 객체=수정)으로 App과 연동
  * - 일정 기간은 DateRangePicker와 dateRange 로컬 상태로 동기화
+ * - 반복 설정 UI: submit payload.repeat 포함 (저장·캘린더 연동은 백엔드 occurrence 설계 후)
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import DateRangePicker from '../components/DateRangePicker.vue'
@@ -127,9 +128,12 @@ function getRepeatEndDateInputEl() {
   return Array.isArray(raw) ? raw[0] : raw
 }
 
-/** 종료일 버튼 클릭 → 브라우저 네이티브 달력 (showPicker, 미지원 시 focus) */
-async function openRepeatEndDatePicker() {
-  await nextTick()
+/**
+ * 종료일 버튼 클릭 → 브라우저 네이티브 달력
+ * - showPicker()는 클릭 핸들러 안에서 동기 호출해야 함 (await nextTick 시 달력 안 뜸)
+ * - Schedule.vue openMonthPicker 와 동일 패턴
+ */
+function openRepeatEndDatePicker() {
   const input = getRepeatEndDateInputEl()
   if (!input) return
   if (typeof input.showPicker === 'function') {
@@ -140,9 +144,7 @@ async function openRepeatEndDatePicker() {
       /* showPicker 미지원·차단 시 focus 로 대체 */
     }
   }
-  if (typeof input.focus === 'function') {
-    input.focus()
-  }
+  input.focus()
 }
 
 /** 숨긴 date input @change → repeatEndDate 동기화 */
@@ -351,7 +353,7 @@ function close() {
       <li class="repeat-field">
         <!-- 제목 행: 반복 라벨 + ON/OFF 스위치 (체크박스는 시각적으로 숨김) -->
         <div class="repeat-header">
-          <p class="fieldTitle">반복</p>
+          <p class="fieldTitle">반복 설정</p>
           <label class="repeat-toggle" :class="{ 'is-on': repeatEnabled }">
             <input
               v-model="repeatEnabled"
@@ -445,8 +447,20 @@ function close() {
                   @keydown.enter.prevent="openRepeatEndDatePicker"
                   @keydown.space.prevent="openRepeatEndDatePicker"
                 >
-                  <svg class viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M0.75 6.75H16.75M0.75 6.75V15.5502C0.75 16.6703 0.75 17.2301 0.967987 17.6579C1.15973 18.0342 1.46547 18.3405 1.8418 18.5322C2.2692 18.75 2.82899 18.75 3.94691 18.75H13.5531C14.671 18.75 15.23 18.75 15.6574 18.5322C16.0337 18.3405 16.3405 18.0342 16.5322 17.6579C16.75 17.2305 16.75 16.6715 16.75 15.5536V6.75M0.75 6.75V5.9502C0.75 4.83009 0.75 4.26962 0.967987 3.8418C1.15973 3.46547 1.46547 3.15973 1.8418 2.96799C2.26962 2.75 2.83009 2.75 3.9502 2.75H4.75M16.75 6.75V5.94691C16.75 4.82899 16.75 4.2692 16.5322 3.8418C16.3405 3.46547 16.0337 3.15973 15.6574 2.96799C15.2296 2.75 14.6703 2.75 13.5502 2.75H12.75M12.75 0.75V2.75M12.75 2.75H4.75M4.75 0.75V2.75" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <svg
+                    class="repeat-end-date-icon"
+                    viewBox="0 0 18 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M0.75 6.75H16.75M0.75 6.75V15.5502C0.75 16.6703 0.75 17.2301 0.967987 17.6579C1.15973 18.0342 1.46547 18.3405 1.8418 18.5322C2.2692 18.75 2.82899 18.75 3.94691 18.75H13.5531C14.671 18.75 15.23 18.75 15.6574 18.5322C16.0337 18.3405 16.3405 18.0342 16.5322 17.6579C16.75 17.2305 16.75 16.6715 16.75 15.5536V6.75M0.75 6.75V5.9502C0.75 4.83009 0.75 4.26962 0.967987 3.8418C1.15973 3.46547 1.46547 3.15973 1.8418 2.96799C2.26962 2.75 2.83009 2.75 3.9502 2.75H4.75M16.75 6.75V5.94691C16.75 4.82899 16.75 4.2692 16.5322 3.8418C16.3405 3.46547 16.0337 3.15973 15.6574 2.96799C15.2296 2.75 14.6703 2.75 13.5502 2.75H12.75M12.75 0.75V2.75M12.75 2.75H4.75M4.75 0.75V2.75"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
 
                   {{ repeatEndDateLabel }}
@@ -777,6 +791,9 @@ function close() {
 }
 
 .repeat-end-date-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
   height: 3.6rem;
   padding: 0 1rem 0 3.6rem;
@@ -788,9 +805,25 @@ function close() {
   color: var(--color-text);
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
 }
+
+.repeat-end-date-icon {
+  position: absolute;
+  left: 1rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  color: var(--color-gray-500);
+  pointer-events: none;
+}
+
 .repeat-end-date-btn:hover {
   border-color: var(--color-point);
+  color: var(--color-point);
+}
+
+.repeat-end-date-btn:hover .repeat-end-date-icon {
   color: var(--color-point);
 }
 
@@ -802,17 +835,28 @@ function close() {
   padding-top: 0;
 }
 
-.repeat-end-date-input {
+.repeat-extra-date .repeat-end-date-input {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+  margin: 0;
   border: 0;
   opacity: 0;
+  pointer-events: none;
+}
+
+.repeat-end-date-btn:focus {
+  outline: none;
+}
+
+.repeat-end-date-btn:focus-visible {
+  outline: 0.2rem solid var(--color-point);
+  outline-offset: 0.1rem;
 }
 
 .repeat-extra-unit {
