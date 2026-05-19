@@ -46,25 +46,41 @@ const categoryId = ref('')
 const showCategoryModal = ref(false)
 const titleInputRef = ref(null)
 
-// 반복 설정
+/** ---------- 반복 설정 (로컬 상태) ---------- */
+
+/** 반복 사용 여부. false면 repeat-panel 숨김 */
 const repeatEnabled = ref(false)
+
+/** 주기: none | day | week | month | year */
 const repeatFrequency = ref('day')
+
+/** 주기별 간격 숫자 (예: day=2 → 2일마다). 선택된 주기만 활성 입력 */
 const repeatInterval = ref({
   day: 1,
   week: 1,
   month: 1,
   year: 1,
 })
+
+/** 종료 조건: forever | count | date */
 const repeatEndType = ref('forever')
+
+/** repeatEndType === 'count' 일 때 반복 횟수 */
 const repeatCount = ref(10)
+
+/** repeatEndType === 'date' 일 때 종료일 (YYYY-MM-DD) */
 const repeatEndDate = ref('')
+
+/** 숨긴 type=date input DOM (showPicker용). v-for 밖에 두어 단일 ref 유지 */
 const repeatEndDateInputRef = ref(null)
 
+/** 종료일 버튼에 표시할 한글 라벨 (예: 2026년 5월 19일) */
 const repeatEndDateLabel = computed(() => {
   if (!repeatEndDate.value) return '날짜 선택'
   return formatDateLabel(repeatEndDate.value)
 })
 
+/** 반복 주기 라디오 목록 */
 const repeatFrequencyOptions = [
   { value: 'none', label: '반복 안 함' },
   { value: 'day', label: '일마다', unit: '일' },
@@ -73,17 +89,20 @@ const repeatFrequencyOptions = [
   { value: 'year', label: '년마다', unit: '년' },
 ]
 
+/** 반복 기간(종료 조건) 라디오 목록 */
 const repeatEndOptions = [
   { value: 'forever', label: '계속 반복' },
   { value: 'count', label: '일정 반복 횟수' },
   { value: 'date', label: '종료 날짜' },
 ]
 
+/** 주기 숫자 입력: 1 미만이면 1로 보정 */
 function clampRepeatInterval(freq, raw) {
   const n = Math.floor(Number(raw))
   repeatInterval.value[freq] = Number.isFinite(n) && n >= 1 ? n : 1
 }
 
+/** 「반복 안 함」 선택 시 토글도 OFF */
 function onRepeatFrequencyChange(value) {
   repeatFrequency.value = value
   if (value === 'none') {
@@ -91,6 +110,7 @@ function onRepeatFrequencyChange(value) {
   }
 }
 
+/** 토글 ON 시 기본 주기 day, 종료일 비어 있으면 일정 기간으로 초기값 */
 function onRepeatToggleChange() {
   if (repeatEnabled.value && repeatFrequency.value === 'none') {
     repeatFrequency.value = 'day'
@@ -100,12 +120,14 @@ function onRepeatToggleChange() {
   }
 }
 
+/** v-for 안 ref였을 때 배열로 잡히는 경우 대비 (현재는 v-for 밖 단일 input) */
 function getRepeatEndDateInputEl() {
   const raw = repeatEndDateInputRef.value
   if (!raw) return null
   return Array.isArray(raw) ? raw[0] : raw
 }
 
+/** 종료일 버튼 클릭 → 브라우저 네이티브 달력 (showPicker, 미지원 시 focus) */
 async function openRepeatEndDatePicker() {
   await nextTick()
   const input = getRepeatEndDateInputEl()
@@ -123,11 +145,13 @@ async function openRepeatEndDatePicker() {
   }
 }
 
+/** 숨긴 date input @change → repeatEndDate 동기화 */
 function onRepeatEndDateChange(e) {
   const value = e.target.value
   if (value) repeatEndDate.value = value
 }
 
+/** 등록 모드·반복 없는 수정 시 반복 필드 초기화 */
 function resetRepeatSettings() {
   repeatEnabled.value = false
   repeatFrequency.value = 'day'
@@ -185,6 +209,7 @@ function syncFromItem() {
   dateRange.value = { start: s, end: e }
   priority.value = String(props.item.priority ?? priorityOptions[2].value)
   categoryId.value = props.item.categoryId == null ? '' : String(props.item.categoryId)
+  // item.repeat 있으면 폼에 복원 (백엔드·store 연동 후 동작)
   const repeat = props.item.repeat
   if (repeat?.enabled) {
     repeatEnabled.value = true
@@ -238,6 +263,7 @@ function submit() {
     return
   }
   const opt = priorityOptions.find((o) => o.value === priority.value)
+  // repeat: API 저장용 규칙 객체 (enabled false면 비활성 한 건으로 통일)
   const payload = {
     title: t,
     memo: memo.value.trim(),
@@ -321,7 +347,9 @@ function close() {
           <button type="button" @click="openAddCategoryModal">추가</button>
         </div>
       </li>
+      <!-- [반복] 토글 + 주기·기간 패널 (repeatEnabled 시 펼침) -->
       <li class="repeat-field">
+        <!-- 제목 행: 반복 라벨 + ON/OFF 스위치 (체크박스는 시각적으로 숨김) -->
         <div class="repeat-header">
           <p class="fieldTitle">반복</p>
           <label class="repeat-toggle" :class="{ 'is-on': repeatEnabled }">
@@ -338,6 +366,7 @@ function close() {
         </div>
 
         <div v-if="repeatEnabled" class="repeat-panel">
+          <!-- 반복 주기: 안 함 / N일·주·개월·년마다 -->
           <ul class="repeat-card" role="radiogroup" aria-label="반복 주기">
             <li
               v-for="opt in repeatFrequencyOptions"
@@ -371,6 +400,7 @@ function close() {
           </ul>
 
           <p class="repeat-section-title">기간</p>
+          <!-- 반복 종료: 계속 / N회 / 종료일 (종료일·횟수는 선택 시 하위 입력 표시) -->
           <ul class="repeat-card" role="radiogroup" aria-label="반복 기간">
             <li
               v-for="opt in repeatEndOptions"
@@ -387,6 +417,7 @@ function close() {
                 <span class="repeat-radio-mark" aria-hidden="true" />
                 <span class="repeat-radio-label">{{ opt.label }}</span>
               </label>
+              <!-- 「일정 반복 횟수」선택 시 횟수 입력 -->
               <div
                 v-if="opt.value === 'count' && repeatEndType === 'count'"
                 class="repeat-extra"
@@ -401,6 +432,7 @@ function close() {
                 <span class="repeat-extra-unit">회</span>
               </div>
             </li>
+            <!-- 종료 날짜: v-for 밖 별도 li (ref 단일 유지). 버튼 + 숨긴 input[type=date] -->
             <li
               v-if="repeatEndType === 'date'"
               class="repeat-card-item repeat-card-item--end-date"
@@ -560,6 +592,7 @@ function close() {
   background: var(--color-white);
 }
 
+/* ---------- 반복 설정 UI (토글·카드·종료일 picker) ---------- */
 .repeat-field {
   gap: 1rem;
 }
@@ -756,10 +789,6 @@ function close() {
   text-align: left;
   cursor: pointer;
 }
-.repeat-end-date-btn:before {
-
-}
-
 .repeat-end-date-btn:hover {
   border-color: var(--color-point);
   color: var(--color-point);
