@@ -393,6 +393,13 @@ function close() {
     <!-- 제목·메모·중요도·일정 기간 -->
     <ul class="formList">
       <li>
+        <div class="fieldTitle-date">
+          <p class="fieldTitle">일정 기간<span class="is-required">*</span></p>
+          <button type="button" class="today" @click="setTodayDateRange">오늘</button>
+        </div>
+        <DateRangePicker v-model="dateRange" />
+      </li>
+      <li>
         <p class="fieldTitle">제목<span class="is-required">*</span></p>
         <input ref="titleInputRef" v-model="title" type="text">
       </li>
@@ -587,13 +594,7 @@ function close() {
           </ul>
         </div>
       </li>
-      <li>
-        <div class="fieldTitle-date">
-          <p class="fieldTitle">일정 기간<span class="is-required">*</span></p>
-          <button type="button" class="today" @click="setTodayDateRange">오늘</button>
-        </div>
-        <DateRangePicker v-model="dateRange" />
-      </li>
+
     </ul>
 
     <!-- 등록·수정·삭제·닫기 -->
