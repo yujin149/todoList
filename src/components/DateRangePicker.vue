@@ -631,17 +631,17 @@ onBeforeUnmount(() => {
         {{ formatKoreanLine(range.start) }}
       </button>
       <span class="drp-arrow" aria-hidden="true">
-        <svg 
+        <svg
           class="arrowRight"
-          viewBox="0 0 12 10" 
+          viewBox="0 0 12 10"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <path 
-            d="M1 5H11M11 5L7 1M11 5L7 9" 
-            stroke="currentColor" 
-            stroke-width="1" 
-            stroke-linecap="round" 
+          <path
+            d="M1 5H11M11 5L7 1M11 5L7 9"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
             stroke-linejoin="round"
           />
         </svg>
@@ -914,13 +914,13 @@ onBeforeUnmount(() => {
   --drp-sun: #ea4335;
   --drp-sat: #4285f4;
   --drp-outside: #a9adb4;
-  --drp-range-h: 3.6rem;
-  --drp-drum-item-h: 4.4rem;
+  --drp-range-h: 3rem;
+  --drp-drum-item-h: 4rem;
 
   background: var(--drp-bg);
   color: var(--drp-text);
   border-radius: 1rem;
-  padding: 1.4rem 2rem 1.4rem;
+  padding: 1.4rem;
   font-size: 1.4rem;
   border: 1px solid var(--drp-border);
   box-shadow: 0 0.1rem 0.3rem rgba(60, 64, 67, 0.08);
@@ -1222,6 +1222,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   z-index: 1;
   pointer-events: none;
+  font-size:1.3rem;
 }
 
 .drp-cell.is-outside {

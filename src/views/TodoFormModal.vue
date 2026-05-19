@@ -9,7 +9,7 @@ import DateRangePicker from '../components/DateRangePicker.vue'
 import CategoryFormModal from '../components/ui/CategoryFormModal.vue'
 import ModalLayout from '../components/ui/ModalLayout.vue'
 import { useScheduleStore } from '../stores/schedule'
-import { formatDate } from '../utils/dateUtils'
+import { formatDate, formatDateLabel } from '../utils/dateUtils'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
@@ -46,6 +46,97 @@ const categoryId = ref('')
 const showCategoryModal = ref(false)
 const titleInputRef = ref(null)
 
+// 반복 설정
+const repeatEnabled = ref(false)
+const repeatFrequency = ref('day')
+const repeatInterval = ref({
+  day: 1,
+  week: 1,
+  month: 1,
+  year: 1,
+})
+const repeatEndType = ref('forever')
+const repeatCount = ref(10)
+const repeatEndDate = ref('')
+const repeatEndDateInputRef = ref(null)
+
+const repeatEndDateLabel = computed(() => {
+  if (!repeatEndDate.value) return '날짜 선택'
+  return formatDateLabel(repeatEndDate.value)
+})
+
+const repeatFrequencyOptions = [
+  { value: 'none', label: '반복 안 함' },
+  { value: 'day', label: '일마다', unit: '일' },
+  { value: 'week', label: '주마다', unit: '주' },
+  { value: 'month', label: '개월마다', unit: '개월' },
+  { value: 'year', label: '년마다', unit: '년' },
+]
+
+const repeatEndOptions = [
+  { value: 'forever', label: '계속 반복' },
+  { value: 'count', label: '일정 반복 횟수' },
+  { value: 'date', label: '종료 날짜' },
+]
+
+function clampRepeatInterval(freq, raw) {
+  const n = Math.floor(Number(raw))
+  repeatInterval.value[freq] = Number.isFinite(n) && n >= 1 ? n : 1
+}
+
+function onRepeatFrequencyChange(value) {
+  repeatFrequency.value = value
+  if (value === 'none') {
+    repeatEnabled.value = false
+  }
+}
+
+function onRepeatToggleChange() {
+  if (repeatEnabled.value && repeatFrequency.value === 'none') {
+    repeatFrequency.value = 'day'
+  }
+  if (repeatEnabled.value && !repeatEndDate.value) {
+    repeatEndDate.value = dateRange.value.end || dateRange.value.start || formatDate(new Date())
+  }
+}
+
+function getRepeatEndDateInputEl() {
+  const raw = repeatEndDateInputRef.value
+  if (!raw) return null
+  return Array.isArray(raw) ? raw[0] : raw
+}
+
+async function openRepeatEndDatePicker() {
+  await nextTick()
+  const input = getRepeatEndDateInputEl()
+  if (!input) return
+  if (typeof input.showPicker === 'function') {
+    try {
+      input.showPicker()
+      return
+    } catch {
+      /* showPicker 미지원·차단 시 focus 로 대체 */
+    }
+  }
+  if (typeof input.focus === 'function') {
+    input.focus()
+  }
+}
+
+function onRepeatEndDateChange(e) {
+  const value = e.target.value
+  if (value) repeatEndDate.value = value
+}
+
+function resetRepeatSettings() {
+  repeatEnabled.value = false
+  repeatFrequency.value = 'day'
+  repeatInterval.value = { day: 1, week: 1, month: 1, year: 1 }
+  repeatEndType.value = 'forever'
+  repeatCount.value = 10
+  repeatEndDate.value = ''
+}
+
 function openAddCategoryModal() {
   if (store.categories.length >= store.MAX_CATEGORIES) {
     alert(`카테고리는 최대 ${store.MAX_CATEGORIES}개까지 추가할 수 있어요.`)
@@ -81,6 +172,7 @@ function resetForAdd() {
   dateRange.value = { start: d, end: d }
   priority.value = priorityOptions[2].value
   categoryId.value = ''
+  resetRepeatSettings()
 }
 
 /** 수정 모드: 서버 없이 넘어온 item으로 폼 채움 */
@@ -93,6 +185,22 @@ function syncFromItem() {
   dateRange.value = { start: s, end: e }
   priority.value = String(props.item.priority ?? priorityOptions[2].value)
   categoryId.value = props.item.categoryId == null ? '' : String(props.item.categoryId)
+  const repeat = props.item.repeat
+  if (repeat?.enabled) {
+    repeatEnabled.value = true
+    repeatFrequency.value = repeat.frequency ?? 'day'
+    repeatInterval.value = {
+      day: repeat.interval?.day ?? 1,
+      week: repeat.interval?.week ?? 1,
+      month: repeat.interval?.month ?? 1,
+      year: repeat.interval?.year ?? 1,
+    }
+    repeatEndType.value = repeat.endType ?? 'forever'
+    repeatCount.value = repeat.count ?? 10
+    repeatEndDate.value = repeat.endDate ?? ''
+  } else {
+    resetRepeatSettings()
+  }
 }
 
 /** 열릴 때만 등록/수정 분기 후 포커스·스크롤 */
@@ -125,6 +233,10 @@ function submit() {
     start = end
     end = tmp
   }
+  if (repeatEnabled.value && repeatEndType.value === 'date' && !repeatEndDate.value) {
+    alert('반복 종료 날짜를 선택해 주세요.')
+    return
+  }
   const opt = priorityOptions.find((o) => o.value === priority.value)
   const payload = {
     title: t,
@@ -134,6 +246,16 @@ function submit() {
     priority: Number(priority.value),
     priorityText: opt?.label ?? '',
     categoryId: categoryId.value ? Number(categoryId.value) : null,
+    repeat: repeatEnabled.value && repeatFrequency.value !== 'none'
+      ? {
+        enabled: true,
+        frequency: repeatFrequency.value,
+        interval: { ...repeatInterval.value },
+        endType: repeatEndType.value,
+        count: repeatEndType.value === 'count' ? Math.max(1, Number(repeatCount.value) || 1) : null,
+        endDate: repeatEndType.value === 'date' ? repeatEndDate.value || null : null,
+      }
+      : { enabled: false },
   }
   if (props.item) {
     emit('update', { id: props.item.id, ...payload })
@@ -197,6 +319,117 @@ function close() {
             </option>
           </select>
           <button type="button" @click="openAddCategoryModal">추가</button>
+        </div>
+      </li>
+      <li class="repeat-field">
+        <div class="repeat-header">
+          <p class="fieldTitle">반복</p>
+          <label class="repeat-toggle" :class="{ 'is-on': repeatEnabled }">
+            <input
+              v-model="repeatEnabled"
+              type="checkbox"
+              class="repeat-toggle-input"
+              @change="onRepeatToggleChange"
+            >
+            <span class="repeat-toggle-track" aria-hidden="true">
+              <span class="repeat-toggle-thumb" />
+            </span>
+          </label>
+        </div>
+
+        <div v-if="repeatEnabled" class="repeat-panel">
+          <ul class="repeat-card" role="radiogroup" aria-label="반복 주기">
+            <li
+              v-for="opt in repeatFrequencyOptions"
+              :key="opt.value"
+              class="repeat-card-item"
+            >
+              <label class="repeat-radio">
+                <input
+                  type="radio"
+                  name="repeat-frequency"
+                  :value="opt.value"
+                  :checked="repeatFrequency === opt.value"
+                  @change="onRepeatFrequencyChange(opt.value)"
+                >
+                <span class="repeat-radio-mark" aria-hidden="true" />
+                <span v-if="opt.value === 'none'" class="repeat-radio-label">{{ opt.label }}</span>
+                <span v-else class="repeat-radio-label repeat-radio-label--interval">
+                  <input
+                    type="number"
+                    min="1"
+                    class="repeat-interval-input"
+                    :value="repeatInterval[opt.value]"
+                    :disabled="repeatFrequency !== opt.value"
+                    @input="clampRepeatInterval(opt.value, $event.target.value)"
+                    @click.stop
+                  >
+                  <span>{{ opt.label }}</span>
+                </span>
+              </label>
+            </li>
+          </ul>
+
+          <p class="repeat-section-title">기간</p>
+          <ul class="repeat-card" role="radiogroup" aria-label="반복 기간">
+            <li
+              v-for="opt in repeatEndOptions"
+              :key="opt.value"
+              class="repeat-card-item"
+            >
+              <label class="repeat-radio">
+                <input
+                  v-model="repeatEndType"
+                  type="radio"
+                  name="repeat-end"
+                  :value="opt.value"
+                >
+                <span class="repeat-radio-mark" aria-hidden="true" />
+                <span class="repeat-radio-label">{{ opt.label }}</span>
+              </label>
+              <div
+                v-if="opt.value === 'count' && repeatEndType === 'count'"
+                class="repeat-extra"
+              >
+                <input
+                  v-model.number="repeatCount"
+                  type="number"
+                  min="1"
+                  class="repeat-extra-input"
+                  aria-label="반복 횟수"
+                >
+                <span class="repeat-extra-unit">회</span>
+              </div>
+            </li>
+            <li
+              v-if="repeatEndType === 'date'"
+              class="repeat-card-item repeat-card-item--end-date"
+            >
+              <div class="repeat-extra repeat-extra-date">
+                <button
+                  type="button"
+                  class="repeat-end-date-btn"
+                  @click="openRepeatEndDatePicker"
+                  @keydown.enter.prevent="openRepeatEndDatePicker"
+                  @keydown.space.prevent="openRepeatEndDatePicker"
+                >
+                  <svg class viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0.75 6.75H16.75M0.75 6.75V15.5502C0.75 16.6703 0.75 17.2301 0.967987 17.6579C1.15973 18.0342 1.46547 18.3405 1.8418 18.5322C2.2692 18.75 2.82899 18.75 3.94691 18.75H13.5531C14.671 18.75 15.23 18.75 15.6574 18.5322C16.0337 18.3405 16.3405 18.0342 16.5322 17.6579C16.75 17.2305 16.75 16.6715 16.75 15.5536V6.75M0.75 6.75V5.9502C0.75 4.83009 0.75 4.26962 0.967987 3.8418C1.15973 3.46547 1.46547 3.15973 1.8418 2.96799C2.26962 2.75 2.83009 2.75 3.9502 2.75H4.75M16.75 6.75V5.94691C16.75 4.82899 16.75 4.2692 16.5322 3.8418C16.3405 3.46547 16.0337 3.15973 15.6574 2.96799C15.2296 2.75 14.6703 2.75 13.5502 2.75H12.75M12.75 0.75V2.75M12.75 2.75H4.75M4.75 0.75V2.75" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+
+                  {{ repeatEndDateLabel }}
+                </button>
+                <input
+                  ref="repeatEndDateInputRef"
+                  class="repeat-end-date-input"
+                  type="date"
+                  :value="repeatEndDate"
+                  aria-label="반복 종료 날짜"
+                  @change="onRepeatEndDateChange"
+                >
+              </div>
+            </li>
+          </ul>
         </div>
       </li>
       <li>
@@ -327,5 +560,235 @@ function close() {
   background: var(--color-white);
 }
 
+.repeat-field {
+  gap: 1rem;
+}
+
+.repeat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.repeat-toggle {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.repeat-toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.repeat-toggle-track {
+  position: relative;
+  display: block;
+  width: 4.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: var(--color-gray-300);
+  transition: background 0.2s ease;
+}
+
+.repeat-toggle-thumb {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.repeat-toggle.is-on .repeat-toggle-track {
+  background: var(--color-point);
+}
+
+.repeat-toggle.is-on .repeat-toggle-thumb {
+  transform: translateX(2rem);
+}
+
+.repeat-panel {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.5rem;
+}
+
+.repeat-section-title {
+  margin: 1.6rem 0 0.5rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--color-gray-500);
+}
+
+.repeat-card {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 0.1rem solid var(--color-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: var(--color-white);
+}
+
+.repeat-card-item {
+  border-top: 0.1rem solid var(--color-border);
+}
+
+.repeat-card-item:first-child {
+  border-top: none;
+}
+
+.formList .repeat-card-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.repeat-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+  font-size: 1.4rem;
+  font-weight: 500;
+}
+
+.repeat-radio input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.repeat-radio-mark {
+  flex-shrink: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0.15rem solid var(--color-gray-400);
+  border-radius: 50%;
+  background: var(--color-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.repeat-radio input[type="radio"]:checked + .repeat-radio-mark {
+  border: 0.5rem solid var(--color-point);
+}
+
+.repeat-radio-label {
+  flex: 1;
+}
+
+.repeat-radio-label--interval {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.repeat-interval-input {
+  width: 3.6rem;
+  height: auto;
+  padding: 0 0 0.2rem;
+  border: none;
+  border-bottom: 0.15rem solid var(--color-point);
+  border-radius: 0;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--color-point);
+  background: transparent;
+}
+
+.repeat-interval-input:disabled {
+  border-bottom-color: var(--color-gray-300);
+  color: var(--color-gray-400);
+}
+
+.repeat-interval-input::-webkit-outer-spin-button,
+.repeat-interval-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.repeat-extra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.6rem;
+}
+
+.repeat-extra-input {
+  width: 6rem;
+  height: 3.2rem;
+  padding: 0 0.8rem;
+  font-size: 1.4rem;
+}
+
+.repeat-extra-date {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.repeat-end-date-btn {
+  width: 100%;
+  height: 3.6rem;
+  padding: 0 1rem 0 3.6rem;
+  border: 0.1rem solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-white);
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+.repeat-end-date-btn:before {
+
+}
+
+.repeat-end-date-btn:hover {
+  border-color: var(--color-point);
+  color: var(--color-point);
+}
+
+.repeat-card-item--end-date {
+  border-top: none;
+}
+
+.repeat-card-item--end-date .repeat-extra-date {
+  padding-top: 0;
+}
+
+.repeat-end-date-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+
+.repeat-extra-unit {
+  font-size: 1.3rem;
+  color: var(--color-gray-500);
+}
 
 </style>

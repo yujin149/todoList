@@ -72,17 +72,17 @@ const open = defineModel('open', { type: Boolean, default: false })
   max-height:85vh;
   overflow-y: auto;
 }
-.modalInner::-webkit-scrollbar { 
-  width: 1.6rem; 
+.modalInner::-webkit-scrollbar {
+  width: 1.6rem;
 }
-.modalInner::-webkit-scrollbar-thumb { 
-  background:var(--bg-opacity40); 
-  border-radius: 999rem; 
-  border: 0.4rem solid transparent; 
+.modalInner::-webkit-scrollbar-thumb {
+  background:var(--bg-opacity40);
+  border-radius: 999rem;
+  border: 0.4rem solid transparent;
   background-clip: content-box;
   position:relative;
 }
-.modalInner::-webkit-scrollbar-track { 
+.modalInner::-webkit-scrollbar-track {
   background:var(--color-gray-100);
 }
 
@@ -96,6 +96,7 @@ const open = defineModel('open', { type: Boolean, default: false })
   top:0;
   background:var(--color-white);
   border-bottom:1px solid var(--color-border);
+  z-index: 9;
 }
 
 .modalTitle h2 {
