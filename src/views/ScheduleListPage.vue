@@ -125,6 +125,12 @@ function onDeleteItem(id) {
   store.deleteItem(id)
 }
 
+function onDeleteFromList(item) {
+  const ok = confirm(`"${item.title}"를 삭제하시겠습니까?`)
+  if (!ok) return
+  onDeleteItem(item.id)
+}
+
 /** 체크박스: 완료 시 목록 하단 정렬용 completedOrder 부여 */
 function onToggleComplete(payload) {
   store.toggleComplete(payload)
@@ -222,6 +228,8 @@ watch(isFormModalOpen, (open) => {
           v-if="visibleItems.length"
           :items="visibleItems"
           @select="openDetailModal"
+          @edit="openDetailModal"
+          @delete="onDeleteFromList"
           @toggle-complete="onToggleComplete"
         />
         <p v-else class="listEmpty">등록된 일정이 없습니다.</p>
