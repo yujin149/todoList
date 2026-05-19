@@ -10,7 +10,7 @@ import DateRangePicker from '../components/DateRangePicker.vue'
 import CategoryFormModal from '../components/ui/CategoryFormModal.vue'
 import ModalLayout from '../components/ui/ModalLayout.vue'
 import { useScheduleStore } from '../stores/schedule'
-import { formatDate, formatDateLabel } from '../utils/dateUtils'
+import { formatDate, formatDateLabel, parseYmd } from '../utils/dateUtils'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
@@ -72,6 +72,67 @@ const repeatCount = ref(10)
 /** repeatEndType === 'date' 일 때 종료일 (YYYY-MM-DD) */
 const repeatEndDate = ref('')
 
+/** 개월·년 반복 시 세부 패턴: dayOfMonth | weekdayOfMonth | lastDay */
+const repeatMonthPattern = ref('dayOfMonth')
+
+const WEEKDAY_KO = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+const WEEK_ORDINAL_KO = ['첫', '두', '세', '네', '다섯']
+
+/** 반복 기준일 (일정 시작일 우선) */
+const repeatAnchorDate = computed(() => {
+  const ymd = dateRange.value.start || dateRange.value.end || formatDate(new Date())
+  return parseYmd(ymd)
+})
+
+/** 해당 월에서 기준일이 몇 번째 같은 요일인지 (1~5) */
+function weekdayOccurrenceInMonth(date) {
+  const targetDow = date.getDay()
+  let count = 0
+  for (let d = 1; d <= date.getDate(); d += 1) {
+    const probe = new Date(date.getFullYear(), date.getMonth(), d)
+    if (probe.getDay() === targetDow) count += 1
+  }
+  return count
+}
+
+function formatNthWeekdayLabel(date) {
+  const n = weekdayOccurrenceInMonth(date)
+  const weekday = WEEKDAY_KO[date.getDay()]
+  if (n === 5) return `${n}번째 ${weekday}마다 반복`
+  if (n >= 1 && n <= WEEK_ORDINAL_KO.length) {
+    return `${WEEK_ORDINAL_KO[n - 1]} 번째 ${weekday} 마다 반복`
+  }
+  return `${n}번째 ${weekday}마다 반복`
+}
+
+/** 개월·년 반복 선택 시 표시할 pill 버튼 목록 */
+const repeatPatternOptions = computed(() => {
+  const date = repeatAnchorDate.value
+  const day = date.getDate()
+  const month = date.getMonth() + 1
+  const isYear = repeatFrequency.value === 'year'
+  const options = []
+
+  // 선택 날짜(N일): 29·30·31일은 해당 일이 있는 달에만 실제 반복됨
+  options.push({ value: 'dayOfMonth', label: `${day}일 마다 반복` })
+
+  options.push({
+    value: 'weekdayOfMonth',
+    label: formatNthWeekdayLabel(date),
+  })
+
+  options.push({
+    value: 'lastDay',
+    label: isYear ? `${month}월 마지막 날마다 반복` : '마지막 날에 반복',
+  })
+
+  return options
+})
+
+const showRepeatPatternOptions = computed(() =>
+  repeatEnabled.value && (repeatFrequency.value === 'month' || repeatFrequency.value === 'year'),
+)
+
 /** 숨긴 type=date input DOM (showPicker용). v-for 밖에 두어 단일 ref 유지 */
 const repeatEndDateInputRef = ref(null)
 
@@ -108,6 +169,9 @@ function onRepeatFrequencyChange(value) {
   repeatFrequency.value = value
   if (value === 'none') {
     repeatEnabled.value = false
+  }
+  if (value === 'month' || value === 'year') {
+    ensureValidRepeatMonthPattern()
   }
 }
 
@@ -158,9 +222,15 @@ function resetRepeatSettings() {
   repeatEnabled.value = false
   repeatFrequency.value = 'day'
   repeatInterval.value = { day: 1, week: 1, month: 1, year: 1 }
+  repeatMonthPattern.value = 'dayOfMonth'
   repeatEndType.value = 'forever'
   repeatCount.value = 10
   repeatEndDate.value = ''
+}
+
+function ensureValidRepeatMonthPattern() {
+  const valid = repeatPatternOptions.value.some((o) => o.value === repeatMonthPattern.value)
+  if (!valid) repeatMonthPattern.value = 'dayOfMonth'
 }
 
 function openAddCategoryModal() {
@@ -225,10 +295,16 @@ function syncFromItem() {
     repeatEndType.value = repeat.endType ?? 'forever'
     repeatCount.value = repeat.count ?? 10
     repeatEndDate.value = repeat.endDate ?? ''
+    repeatMonthPattern.value = repeat.monthPattern ?? 'dayOfMonth'
+    ensureValidRepeatMonthPattern()
   } else {
     resetRepeatSettings()
   }
 }
+
+watch([repeatPatternOptions, () => dateRange.value.start], () => {
+  if (showRepeatPatternOptions.value) ensureValidRepeatMonthPattern()
+})
 
 /** 열릴 때만 등록/수정 분기 후 포커스·스크롤 */
 watch(
@@ -279,6 +355,9 @@ function submit() {
         enabled: true,
         frequency: repeatFrequency.value,
         interval: { ...repeatInterval.value },
+        monthPattern: ['month', 'year'].includes(repeatFrequency.value)
+          ? repeatMonthPattern.value
+          : null,
         endType: repeatEndType.value,
         count: repeatEndType.value === 'count' ? Math.max(1, Number(repeatCount.value) || 1) : null,
         endDate: repeatEndType.value === 'date' ? repeatEndDate.value || null : null,
@@ -368,6 +447,19 @@ function close() {
         </div>
 
         <div v-if="repeatEnabled" class="repeat-panel">
+          <!-- 공휴일/주말 보정 추가 -->
+          <div class="repeat-holiday">
+            <label for="holidayYN"><input type="checkbox" name="" id="holidayYN"> 공휴일/주말 보정</label>
+            <span class="info">
+              <svg class="icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0 9C0 13.9706 4.02944 18 9 18C13.9706 18 18 13.9706 18 9C18 4.02944 13.9706 0 9 0C4.02944 0 0 4.02944 0 9Z" fill="currentColor"/>
+              <path d="M9.09961 13V13.1L9 13.0996M9.0498 5V9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              선택한 날짜가 주말 또는 공휴일이면 이전 평일로 표시됩니다.
+            </span>
+          </div>
+
+          <p class="repeat-section-title">반복 주기</p>
           <!-- 반복 주기: 안 함 / N일·주·개월·년마다 -->
           <ul class="repeat-card" role="radiogroup" aria-label="반복 주기">
             <li
@@ -398,6 +490,23 @@ function close() {
                   <span>{{ opt.label }}</span>
                 </span>
               </label>
+              <div
+                v-if="(opt.value === 'month' || opt.value === 'year') && repeatFrequency === opt.value"
+                class="repeat-pattern-options"
+                role="radiogroup"
+                :aria-label="opt.value === 'month' ? '개월 반복 방식' : '년 반복 방식'"
+              >
+                <button
+                  v-for="pat in repeatPatternOptions"
+                  :key="pat.value"
+                  type="button"
+                  class="repeat-pattern-btn"
+                  :class="{ 'is-active': repeatMonthPattern === pat.value }"
+                  @click="repeatMonthPattern = pat.value"
+                >
+                  {{ pat.label }}
+                </button>
+              </div>
             </li>
           </ul>
 
@@ -672,6 +781,34 @@ function close() {
   margin-top: 0.5rem;
 }
 
+.repeat-holiday label{
+  display: flex;
+  align-items: center;
+  gap:0.5rem;
+  cursor: pointer;
+  line-height:1;
+  margin-bottom:0.2rem;
+}
+.repeat-holiday label:hover{
+  color:var(--color-point);
+}
+.repeat-holiday label input{
+  margin-top:0;
+}
+.repeat-holiday .info{
+  display: inline-block;
+  color:var(--color-gray-500);
+  font-size:1.2rem;
+}
+.repeat-holiday .info .icon{
+  display: inline-block;
+  width:1.2rem;
+  height:1.2rem;
+  color:var(--color-gray-400);
+  vertical-align: middle;
+  margin-bottom:0.1rem;
+}
+
 .repeat-section-title {
   margin: 1.6rem 0 0.5rem;
   font-size: 1.3rem;
@@ -768,6 +905,46 @@ function close() {
 .repeat-interval-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.repeat-pattern-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0 1.2rem 1.2rem;
+}
+
+.repeat-pattern-btn {
+  width: 100%;
+  padding: 1rem 1.2rem;
+  border: 0.1rem solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-white);
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--color-gray-500);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.repeat-pattern-btn:hover:not(.is-active) {
+  border-color: var(--color-gray-400);
+  color: var(--color-text);
+}
+
+.repeat-pattern-btn.is-active {
+  border-color: var(--color-point);
+  color: var(--color-point);
+}
+
+.repeat-pattern-btn:focus {
+  outline: none;
+}
+
+.repeat-pattern-btn:focus-visible {
+  outline: 0.2rem solid var(--color-point);
+  outline-offset: 0.1rem;
 }
 
 .repeat-extra {
