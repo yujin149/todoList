@@ -4,6 +4,9 @@
  * 클릭 → 상세/수정 모달, 체크박스 → 완료 토글
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useScheduleStore } from '../stores/schedule'
+
+const store = useScheduleStore()
 
 const props = defineProps({
   items: {
@@ -55,10 +58,37 @@ function periodLine(item) {
   return `${s} ~ ${e}`
 }
 
+const UNASSIGNED_CATEGORY_LABEL = '미지정'
+
+function getCategory(categoryId) {
+  if (categoryId == null) return null
+  return store.categories.find((c) => String(c.id) === String(categoryId)) ?? null
+}
+
+function getCategoryLabel(categoryId) {
+  return getCategory(categoryId)?.name ?? UNASSIGNED_CATEGORY_LABEL
+}
+
+function getCategoryStyle(categoryId) {
+  const category = getCategory(categoryId)
+  if (!category) {
+    return {
+      color: 'var(--category-color9)',
+      backgroundColor: 'var(--category-bg9)',
+    }
+  }
+  return {
+    color: category.color || 'var(--category-color9)',
+    backgroundColor: category.bgColor || 'var(--category-bg9)',
+  }
+}
+
 const rows = computed(() =>
   props.items.map((item) => ({
     item,
     period: periodLine(item),
+    categoryLabel: getCategoryLabel(item.categoryId),
+    categoryStyle: getCategoryStyle(item.categoryId),
   })),
 )
 </script>
@@ -66,7 +96,7 @@ const rows = computed(() =>
   <!-- 항목 있음 -->
   <ul v-if="rows.length" class="listWrap">
     <li
-      v-for="{ item, period } in rows"
+      v-for="{ item, period, categoryLabel, categoryStyle } in rows"
       :key="item.id"
       :class="{ 'is-completed': item.completed }"
     >
@@ -84,6 +114,9 @@ const rows = computed(() =>
           </p>
           <p class="memo">{{ item.memo }}</p>
           <div class="textInfo">
+            <p class="categoryTag">
+              <span class="tag" :style="categoryStyle">{{ categoryLabel }}</span>
+            </p>
             <p class="priority"><span class="tag" :class="`tag-${item.priority}`">{{ item.priorityLabel }}</span></p>
             <p v-if="period" class="period">{{ period }}</p>
           </div>
@@ -165,8 +198,16 @@ const rows = computed(() =>
   }
   .textWrap .textInfo{
     margin-top:2rem;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap:wrap;
+    gap:1rem 0;
   }
-
+  .textWrap .textInfo p{
+    display: flex;
+    align-items: center;
+  }
   .textWrap .textInfo p:not(:last-child):after{
     content:'';
     display: inline-block;
@@ -176,9 +217,14 @@ const rows = computed(() =>
     background:var(--color-gray-400);
   }
 
-  .textWrap .priority{
-    display: inline;
+  .textWrap .categoryTag .tag {
+    display: inline-block;
+    padding: 0.2rem 0.6rem 0.1rem;
+    border-radius: 0.2rem;
+    font-size: 1.1rem;
+    font-weight: 700;
   }
+
   .textWrap .priority .tag{
     display: inline-block;
     padding:0.2rem 0.6rem 0.1rem;
