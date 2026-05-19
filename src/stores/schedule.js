@@ -106,9 +106,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     try {
       await axios.delete(`/api/categories/${categoryId}`)
       categories.value = categories.value.filter((c) => c.id !== categoryId)
-      items.value = items.value.map((item) =>
-        item.categoryId === categoryId ? { ...item, categoryId: null } : item,
-      )
+      items.value = items.value.filter((item) => item.categoryId !== categoryId)
       return { ok: true }
     } catch {
       return { ok: false, reason: 'error' }

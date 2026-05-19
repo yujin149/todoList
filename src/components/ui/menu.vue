@@ -24,6 +24,8 @@ const showCategoryModal = ref(false)
 const categoryModalMode = ref('add')
 const editingCategory = ref(null)
 const openDropdownId = ref(null)
+const showDeleteConfirm = ref(false)
+const categoryToDelete = ref(null)
 const isCategoryLimitReached = computed(() => store.categories.length >= store.MAX_CATEGORIES)
 
 watch(
@@ -31,6 +33,7 @@ watch(
   (isOpen) => {
     if (!isOpen) {
       closeCategoryModal()
+      closeDeleteConfirm()
       openDropdownId.value = null
     }
   },
@@ -91,16 +94,41 @@ function startEditCategory(category) {
   openCategoryModal('edit', category)
 }
 
+function hasSchedulesInCategory(categoryId) {
+  return store.items.some((item) => String(item.categoryId) === String(categoryId))
+}
+
 function removeCategory(category) {
   openDropdownId.value = null
+  if (hasSchedulesInCategory(category.id)) {
+    categoryToDelete.value = category
+    showDeleteConfirm.value = true
+    return
+  }
   const ok = confirm(`"${category.name}" 카테고리를 삭제할까요?`)
   if (!ok) return
-  const result = store.deleteCategory(category.id)
-  if (!result.ok === "true") {
+  executeDeleteCategory(category)
+}
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false
+  categoryToDelete.value = null
+}
+
+async function confirmDeleteCategory() {
+  const category = categoryToDelete.value
+  if (!category) return
+  closeDeleteConfirm()
+  await executeDeleteCategory(category)
+}
+
+async function executeDeleteCategory(category) {
+  const result = await store.deleteCategory(category.id)
+  if (!result.ok) {
     alert('카테고리 삭제에 실패했어요.')
     return
   }
-  if (props.selectedCategoryId === category.id) {
+  if (String(props.selectedCategoryId) === String(category.id)) {
     emit('select-category', 'all')
   }
 }
@@ -191,6 +219,27 @@ function removeCategory(category) {
       :category="editingCategory"
       @saved="onCategorySaved"
     />
+
+    <div
+      v-if="showDeleteConfirm && categoryToDelete"
+      class="deleteConfirmLayer"
+      @click.self="closeDeleteConfirm"
+    >
+      <div class="deleteConfirmModal" role="alertdialog" aria-modal="true">
+        <p class="deleteConfirmMessage">
+          "{{ categoryToDelete.name }}"에 등록된 일정이 있습니다.
+          <span class="info">카테고리를 삭제하면 포함된 일정도 함께 삭제됩니다.</span>
+        </p>
+        <div class="deleteConfirmBtns">
+          <button type="button" class="deleteConfirmBtn is-cancel" @click="closeDeleteConfirm">
+            취소
+          </button>
+          <button type="button" class="deleteConfirmBtn is-danger" @click="confirmDeleteCategory">
+            삭제
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -363,5 +412,74 @@ function removeCategory(category) {
 }
 .menuAddBtn:hover{
   background:var(--color-gray-100);
+}
+
+.deleteConfirmLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.6rem;
+  background: var(--bg-opacity70);
+}
+
+.deleteConfirmModal {
+  width: 100%;
+  max-width: 36rem;
+  padding: 3rem 2rem 2rem;
+  background: var(--color-white);
+  border-radius: 0.8rem;
+  box-shadow: 0 0.4rem 2rem var(--bg-opacity40);
+}
+
+.deleteConfirmMessage {
+  margin: 0 0 3rem;
+  font-size: 1.7rem;
+  font-weight:700;
+  line-height: 1.5;
+  color: var(--color-gray-900);
+  word-break: keep-all;
+}
+.deleteConfirmMessage span{
+  display: block;
+  font-size:1.4rem;
+  font-weight:500;
+  color: var(--color-gray-500);
+  margin-top:0.2rem;
+}
+
+.deleteConfirmBtns {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.deleteConfirmBtn {
+  flex: 1;
+  min-height: 4rem;
+  border-radius: 0.4rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.deleteConfirmBtn.is-cancel {
+  border: 0.1rem solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-gray-700);
+}
+
+.deleteConfirmBtn.is-cancel:hover {
+  background: var(--color-gray-100);
+}
+
+.deleteConfirmBtn.is-danger {
+  border: none;
+  background: var(--priority-urgent);
+  color: var(--color-white);
+}
+
+.deleteConfirmBtn.is-danger:hover {
+  filter: contrast(1.1);
 }
 </style>
