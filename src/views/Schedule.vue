@@ -825,7 +825,9 @@ function onSelectCategory(categoryId) {
 
 .evBar--done {
   /* opacity: 0.55; */
-  
+}
+.evBar--done .evBarText{
+  text-decoration: line-through;
 }
 
 .evBar--p1 {
