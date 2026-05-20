@@ -454,19 +454,7 @@ function close() {
         </div>
 
         <div v-if="repeatEnabled" class="repeat-panel">
-          <!-- 공휴일/주말 보정 추가 -->
-          <div class="repeat-holiday">
-            <label for="holidayYN"><input type="checkbox" name="" id="holidayYN"> 공휴일/주말 보정</label>
-            <span class="info">
-              <svg class="icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M0 9C0 13.9706 4.02944 18 9 18C13.9706 18 18 13.9706 18 9C18 4.02944 13.9706 0 9 0C4.02944 0 0 4.02944 0 9Z" fill="currentColor"/>
-              <path d="M9.09961 13V13.1L9 13.0996M9.0498 5V9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              선택한 날짜가 주말 또는 공휴일이면 이전 평일로 표시됩니다.
-            </span>
-          </div>
-
-          <p class="repeat-section-title">반복 주기</p>
+          <!-- <p class="repeat-section-title">반복 주기</p>-->
           <!-- 반복 주기: 안 함 / N일·주·개월·년마다 -->
           <ul class="repeat-card" role="radiogroup" aria-label="반복 주기">
             <li
@@ -782,34 +770,6 @@ function close() {
   margin-top: 0.5rem;
 }
 
-.repeat-holiday label{
-  display: flex;
-  align-items: center;
-  gap:0.5rem;
-  cursor: pointer;
-  line-height:1;
-  margin-bottom:0.2rem;
-}
-.repeat-holiday label:hover{
-  color:var(--color-point);
-}
-.repeat-holiday label input{
-  margin-top:0;
-}
-.repeat-holiday .info{
-  display: inline-block;
-  color:var(--color-gray-500);
-  font-size:1.2rem;
-}
-.repeat-holiday .info .icon{
-  display: inline-block;
-  width:1.2rem;
-  height:1.2rem;
-  color:var(--color-gray-400);
-  vertical-align: middle;
-  margin-bottom:0.1rem;
-}
-
 .repeat-section-title {
   margin: 1.6rem 0 0.5rem;
   font-size: 1.3rem;
@@ -952,7 +912,7 @@ function close() {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 1.6rem;
+  padding:0 1.6rem 1.6rem;
 }
 
 .repeat-extra-input {
