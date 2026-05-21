@@ -3,7 +3,7 @@
  * 일정 시작일·종료일 범위 선택 UI
  *
  * - v-model: { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } (defineModel)
- * - 상단 pill로 시작/종료 중 어떤 날을 고칠지 선택 → 달력 클릭으로 반영(더블클릭은 하루짜리)
+ * - 상단 pill 토글: 클릭 시 해당 일(start/end) 선택 + 달력 슬라이드 표시, 같은 pill 재클릭 시 접기
  * - 월 제목 클릭 시 연·월·일 드럼 피커(스크롤·키보드·숫자 입력)
  *
  * 세부 동작은 아래 개별 JSDoc 주석을 참고.
@@ -31,6 +31,8 @@ const range = defineModel({ type: Object, default: () => ({ start: '', end: '' }
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 const activeField = ref('start')
+/** pill 클릭 시에만 달력·드럼 영역 표시 (초기에는 헤더만) */
+const showCalendarPanel = ref(false)
 const viewYear = ref(new Date().getFullYear())
 const viewMonth = ref(new Date().getMonth() + 1)
 
@@ -128,6 +130,18 @@ function syncViewToActiveAnchor() {
   if (!dt) return
   viewYear.value = dt.getFullYear()
   viewMonth.value = dt.getMonth() + 1
+}
+
+/** 시작/종료 pill 토글: 같은 pill 재클릭 시 패널 접기, 다른 pill은 필드 전환 후 열기 */
+function toggleActiveField(field) {
+  if (activeField.value === field && showCalendarPanel.value) {
+    showCalendarPanel.value = false
+    if (showDrumPicker.value) closeDrumPicker()
+    return
+  }
+  activeField.value = field
+  showCalendarPanel.value = true
+  syncViewToActiveAnchor()
 }
 
 watch(
@@ -619,14 +633,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="drp">
-    <!-- 시작/종료 pill → 활성 필드(activeField)에 달력·드럼이 반영됨 -->
+  <div class="drp" :class="{ 'is-panel-open': showCalendarPanel }">
+    <!-- 시작/종료 pill 토글 → 달력 패널 슬라이드 -->
     <div class="drp-header">
       <button
         type="button"
         class="drp-pill"
-        :class="{ 'is-active': activeField === 'start' }"
-        @click="activeField = 'start'"
+        :class="{ 'is-active': showCalendarPanel && activeField === 'start' }"
+        :aria-expanded="showCalendarPanel && activeField === 'start'"
+        aria-controls="drp-calendar-panel"
+        @click="toggleActiveField('start')"
       >
         {{ formatKoreanLine(range.start) }}
       </button>
@@ -650,13 +666,22 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="drp-pill"
-        :class="{ 'is-active': activeField === 'end' }"
-        @click="activeField = 'end'"
+        :class="{ 'is-active': showCalendarPanel && activeField === 'end' }"
+        :aria-expanded="showCalendarPanel && activeField === 'end'"
+        aria-controls="drp-calendar-panel"
+        @click="toggleActiveField('end')"
       >
         {{ formatKoreanLine(range.end) }}
       </button>
     </div>
 
+    <div
+      id="drp-calendar-panel"
+      class="drp-panel"
+      :class="{ 'is-open': showCalendarPanel }"
+      :aria-hidden="!showCalendarPanel"
+    >
+      <div class="drp-panel-inner" :inert="!showCalendarPanel">
     <!-- 월 이동 / 제목 클릭으로 드럼 피커 토글 -->
     <div class="drp-toolbar">
       <button
@@ -899,6 +924,8 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </template>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -920,7 +947,7 @@ onBeforeUnmount(() => {
   background: var(--drp-bg);
   color: var(--drp-text);
   border-radius: 1rem;
-  padding: 1.4rem;
+  padding: 1.2rem;
   font-size: 1.4rem;
   border: 1px solid var(--drp-border);
   box-shadow: 0 0.1rem 0.3rem rgba(60, 64, 67, 0.08);
@@ -931,9 +958,45 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 2rem;
+  margin-bottom: 0;
+  border-bottom: none;
+  transition: padding-bottom 0.3s ease, margin-bottom 0.3s ease, border-color 0.3s ease;
+}
+
+.drp.is-panel-open .drp-header {
   padding-bottom: 1rem;
   margin-bottom: 0.8rem;
   border-bottom: 1px solid var(--drp-border);
+}
+
+.drp-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-0.6rem);
+  overflow: hidden;
+  transition:
+    grid-template-rows 0.38s ease,
+    opacity 0.28s ease,
+    transform 0.38s ease;
+}
+
+.drp-panel.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.drp-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drp-panel,
+  .drp-header {
+    transition: none;
+  }
 }
 
 .drp-pill {
