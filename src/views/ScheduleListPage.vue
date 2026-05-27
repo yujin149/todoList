@@ -10,6 +10,7 @@ import { useScheduleStore } from '../stores/schedule'
 import { useHolidays } from '../composables/useHolidays'
 import { formatDate, formatDateLabel, itemYmdSpan, parseYmd } from '../utils/dateUtils'
 import TodoFormModal from './TodoFormModal.vue'
+import RepeatScopePicker from '../components/ui/RepeatScopePicker.vue'
 import CardList from './CardList.vue'
 
 const props = defineProps({
@@ -121,14 +122,35 @@ function onUpdateItem(payload) {
 }
 
 /** 모달에서 삭제 확정 시 */
-function onDeleteItem(id) {
-  store.deleteItem(id)
+function onDeleteItem(payload) {
+  const id = typeof payload === 'object' ? payload.id : payload
+  const updateType = typeof payload === 'object' ? payload.updateType : 'THIS_ONLY'
+  store.deleteItem(id, updateType ?? 'THIS_ONLY')
 }
 
 function onDeleteFromList(item) {
+  if (item.repeatRuleId) {
+    pendingDeleteItem.value = item
+    showDeleteScopePicker.value = true
+    return
+  }
   const ok = confirm(`"${item.title}"를 삭제하시겠습니까?`)
   if (!ok) return
   onDeleteItem(item.id)
+}
+
+const showDeleteScopePicker = ref(false)
+const pendingDeleteItem = ref(null)
+
+function onDeleteScopeConfirm(updateType) {
+  const item = pendingDeleteItem.value
+  pendingDeleteItem.value = null
+  if (!item) return
+  store.deleteItem(item.id, updateType)
+}
+
+function onDeleteScopeCancel() {
+  pendingDeleteItem.value = null
 }
 
 /** 체크박스: 완료 시 목록 하단 정렬용 completedOrder 부여 */
@@ -244,6 +266,12 @@ watch(isFormModalOpen, (open) => {
     @add="onAddItem"
     @update="onUpdateItem"
     @delete="onDeleteItem"
+  />
+  <RepeatScopePicker
+    v-model:open="showDeleteScopePicker"
+    mode="delete"
+    @confirm="onDeleteScopeConfirm"
+    @cancel="onDeleteScopeCancel"
   />
 </template>
 

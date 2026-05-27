@@ -1,10 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
+import { buildScheduleItemRequest, fromApiRepeatRule } from '../utils/repeatMapper'
 
 export const useScheduleStore = defineStore('schedule', () => {
   const items = ref([])
   const categories = ref([])
+  // 백엔드가 repeatRule 상세를 내려주기 전까지(혹은 일부 환경에서 누락될 때)
+  // repeatRuleId -> 프론트 repeat 설정을 캐시해 수정 모달에 그대로 복원한다.
+  const repeatRuleCache = ref({})
 
   const MAX_CATEGORIES = 8
   const DEFAULT_CATEGORY_COLOR = '#333333'
@@ -31,37 +35,39 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   async function addItem(payload) {
-    const res = await axios.post('/api/items', {
-      title: payload.title,
-      emoji: payload.emoji ?? null,
-      memo: payload.memo,
-      startDate: payload.startDate,
-      endDate: payload.endDate || payload.startDate,
-      priority: payload.priority,
-      priorityLabel: payload.priorityText ?? '',
-      categoryId: payload.categoryId ?? null,
+    const res = await axios.post('/api/items', buildScheduleItemRequest(payload))
+    const created = Array.isArray(res.data) ? res.data : [res.data]
+    created.forEach((item) => {
+      const client = toClientItem(item)
+      items.value.push(client)
     })
-    items.value.push(toClientItem(res.data))
+
+    // repeat enabled로 생성했고, 서버가 repeatRuleId를 주면 캐시에 저장
+    if (payload?.repeat?.enabled) {
+      const first = created[0]
+      const ruleId = first?.repeatRuleId
+      if (ruleId != null) repeatRuleCache.value[String(ruleId)] = payload.repeat
+    }
   }
 
   async function updateItem(payload) {
-    const res = await axios.put(`/api/items/${payload.id}`, {
-      title: payload.title,
-      emoji: payload.emoji ?? null,
-      memo: payload.memo,
-      startDate: payload.startDate,
-      endDate: payload.endDate || payload.startDate,
-      priority: payload.priority,
-      priorityLabel: payload.priorityText ?? '',
-      categoryId: payload.categoryId ?? null,
-    })
+    const updateType = payload.updateType ?? 'THIS_ONLY'
+    const res = await axios.put(`/api/items/${payload.id}`, buildScheduleItemRequest(payload))
+    if (updateType !== 'THIS_ONLY') {
+      await fetchItems()
+      return
+    }
     const idx = items.value.findIndex((i) => i.id === payload.id)
     if (idx !== -1) items.value[idx] = toClientItem(res.data)
   }
 
-  async function deleteItem(id) {
-    await axios.delete(`/api/items/${id}`)
-    items.value = items.value.filter((i) => i.id !== id)
+  async function deleteItem(id, updateType = 'THIS_ONLY') {
+    await axios.delete(`/api/items/${id}`, { params: { updateType } })
+    if (updateType === 'THIS_ONLY') {
+      items.value = items.value.filter((i) => i.id !== id)
+    } else {
+      await fetchItems()
+    }
   }
 
   async function toggleComplete(payload) {
@@ -116,6 +122,13 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   function toClientItem(data) {
+    const repeatFromApi = fromApiRepeatRule(data)
+    const cacheKey = data?.repeatRuleId != null ? String(data.repeatRuleId) : null
+    const repeat =
+      repeatFromApi.enabled && !data?.repeatType && cacheKey && repeatRuleCache.value[cacheKey]
+        ? repeatRuleCache.value[cacheKey]
+        : repeatFromApi
+
     return {
       id: data.id,
       title: data.title,
@@ -129,6 +142,10 @@ export const useScheduleStore = defineStore('schedule', () => {
       completed: data.completed,
       completedOrder: data.completedOrder ?? null,
       categoryId: data.categoryId ?? null,
+      repeatOrigin: data.repeatOrigin ?? false,
+      repeatSeq: data.repeatSeq ?? null,
+      repeatRuleId: data.repeatRuleId ?? null,
+      repeat,
     }
   }
 

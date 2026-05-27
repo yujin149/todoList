@@ -3,13 +3,14 @@
  * 일정 등록·수정·삭제 모달
  * - v-model:open 과 item(null=등록 / 객체=수정)으로 App과 연동
  * - 일정 기간은 DateRangePicker와 dateRange 로컬 상태로 동기화
- * - 반복 설정 UI: submit payload.repeat 포함 (저장·캘린더 연동은 백엔드 occurrence 설계 후)
+ * - 반복 설정: 등록 시 repeatRule API 전송, 수정·삭제 시 범위 선택 alert
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import DateRangePicker from '../components/DateRangePicker.vue'
 import CategoryFormModal from '../components/ui/CategoryFormModal.vue'
 import EmojiPickerPopover from '../components/ui/EmojiPickerPopup.vue'
 import ModalLayout from '../components/ui/ModalLayout.vue'
+import RepeatScopePicker from '../components/ui/RepeatScopePicker.vue'
 import { useScheduleStore } from '../stores/schedule'
 import { formatDate, formatDateLabel, parseYmd } from '../utils/dateUtils'
 
@@ -32,6 +33,12 @@ const emit = defineEmits(['add', 'update', 'delete'])
 const store = useScheduleStore()
 
 const isEdit = computed(() => props.item != null)
+const isRepeatItem = computed(() => Boolean(props.item?.repeatRuleId))
+
+const showScopePicker = ref(false)
+const scopePickerMode = ref('update')
+const pendingScopeAction = ref(null)
+const pendingPayload = ref(null)
 
 // 폼 필드
 const title = ref('')
@@ -125,10 +132,10 @@ const repeatPatternOptions = computed(() => {
     label: formatNthWeekdayLabel(date),
   })
 
-  options.push({
-    value: 'lastDay',
-    label: isYear ? `${month}월 마지막 날마다 반복` : '마지막 날에 반복',
-  })
+  // options.push({
+  //   value: 'lastDay',
+  //   label: isYear ? `${month}월 마지막 날마다 반복` : '마지막 날에 반복',
+  // })
 
   return options
 })
@@ -300,7 +307,8 @@ function syncFromItem() {
   dateRange.value = { start: s, end: e }
   priority.value = String(props.item.priority ?? priorityOptions[2].value)
   categoryId.value = props.item.categoryId == null ? '' : String(props.item.categoryId)
-  // item.repeat 있으면 폼에 복원 (백엔드·store 연동 후 동작)
+
+  // 프론트단 repeat 상태 복원(백엔드 연결 전까지는 item.repeat 기반)
   const repeat = props.item.repeat
   if (repeat?.enabled) {
     repeatEnabled.value = true
@@ -388,6 +396,13 @@ function submit() {
       : { enabled: false },
   }
   if (props.item) {
+    if (isRepeatItem.value) {
+      pendingPayload.value = { id: props.item.id, ...payload }
+      pendingScopeAction.value = 'update'
+      scopePickerMode.value = 'update'
+      showScopePicker.value = true
+      return
+    }
     emit('update', { id: props.item.id, ...payload })
   } else {
     emit('add', payload)
@@ -395,11 +410,37 @@ function submit() {
   open.value = false
 }
 
+function clearPendingScope() {
+  pendingScopeAction.value = null
+  pendingPayload.value = null
+}
+
+function onScopeConfirm(updateType) {
+  if (pendingScopeAction.value === 'update' && pendingPayload.value) {
+    emit('update', { ...pendingPayload.value, updateType })
+    open.value = false
+  } else if (pendingScopeAction.value === 'delete' && props.item) {
+    emit('delete', { id: props.item.id, updateType })
+    open.value = false
+  }
+  clearPendingScope()
+}
+
+function onScopeCancel() {
+  clearPendingScope()
+}
+
 /** 수정 모드만: 확인 후 delete 이벤트 */
 function remove() {
   if (!props.item) return
+  if (isRepeatItem.value) {
+    pendingScopeAction.value = 'delete'
+    scopePickerMode.value = 'delete'
+    showScopePicker.value = true
+    return
+  }
   if (!confirm('이 일정을 삭제할까요?')) return
-  emit('delete', props.item.id)
+  emit('delete', { id: props.item.id, updateType: 'THIS_ONLY' })
   open.value = false
 }
 
@@ -479,7 +520,7 @@ function close() {
           <button type="button" @click="openAddCategoryModal">추가</button>
         </div>
       </li>
-      <!-- [반복] 토글 + 주기·기간 패널 (repeatEnabled 시 펼침) -->
+      <!-- [반복] 프론트단에서 항상 표시(백엔드 연결은 나중에) -->
       <li class="repeat-field">
         <!-- 제목 행: 반복 라벨 + ON/OFF 스위치 (체크박스는 시각적으로 숨김) -->
         <div class="repeat-header">
@@ -642,6 +683,13 @@ function close() {
   </ModalLayout>
 
   <CategoryFormModal v-model:open="showCategoryModal" mode="add" @saved="onCategorySaved" />
+
+  <RepeatScopePicker
+    v-model:open="showScopePicker"
+    :mode="scopePickerMode"
+    @confirm="onScopeConfirm"
+    @cancel="onScopeCancel"
+  />
 </template>
 
 <style scoped>
