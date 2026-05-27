@@ -13,6 +13,7 @@ import ModalLayout from '../components/ui/ModalLayout.vue'
 import RepeatScopePicker from '../components/ui/RepeatScopePicker.vue'
 import { useScheduleStore } from '../stores/schedule'
 import { formatDate, formatDateLabel, parseYmd } from '../utils/dateUtils'
+import { isRecurringScheduleItem } from '../utils/repeatMapper'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
@@ -33,7 +34,7 @@ const emit = defineEmits(['add', 'update', 'delete'])
 const store = useScheduleStore()
 
 const isEdit = computed(() => props.item != null)
-const isRepeatItem = computed(() => Boolean(props.item?.repeatRuleId))
+const isRepeatItem = computed(() => isRecurringScheduleItem(props.item))
 
 const showScopePicker = ref(false)
 const scopePickerMode = ref('update')
@@ -120,8 +121,8 @@ function formatNthWeekdayLabel(date) {
 const repeatPatternOptions = computed(() => {
   const date = repeatAnchorDate.value
   const day = date.getDate()
-  const month = date.getMonth() + 1
-  const isYear = repeatFrequency.value === 'year'
+  //const month = date.getMonth() + 1
+  //const isYear = repeatFrequency.value === 'year'
   const options = []
 
   // 선택 날짜(N일): 29·30·31일은 해당 일이 있는 달에만 실제 반복됨

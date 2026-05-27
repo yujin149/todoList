@@ -9,6 +9,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useScheduleStore } from '../stores/schedule'
 import { useHolidays } from '../composables/useHolidays'
 import { formatDate, formatDateLabel, itemYmdSpan, parseYmd } from '../utils/dateUtils'
+import { isRecurringScheduleItem } from '../utils/repeatMapper'
 import TodoFormModal from './TodoFormModal.vue'
 import RepeatScopePicker from '../components/ui/RepeatScopePicker.vue'
 import CardList from './CardList.vue'
@@ -129,14 +130,13 @@ function onDeleteItem(payload) {
 }
 
 function onDeleteFromList(item) {
-  if (item.repeatRuleId) {
+  if (isRecurringScheduleItem(item)) {
     pendingDeleteItem.value = item
     showDeleteScopePicker.value = true
     return
   }
-  const ok = confirm(`"${item.title}"를 삭제하시겠습니까?`)
-  if (!ok) return
-  onDeleteItem(item.id)
+  if (!confirm('이 일정을 삭제할까요?')) return
+  onDeleteItem({ id: item.id, updateType: 'THIS_ONLY' })
 }
 
 const showDeleteScopePicker = ref(false)

@@ -104,6 +104,11 @@ export function fromApiRepeatRule(data) {
   }
 }
 
+/** 반복에 속한 일정 - 수정·삭제 시 범위 선택 모달 표시 기준 */
+export function isRecurringScheduleItem(item) {
+  return item?.repeatRuleId != null
+}
+
 export const REPEAT_SCOPE_UPDATE = [
   { value: 'THIS_ONLY', label: '이번 일정만' },
   { value: 'FROM_THIS', label: '이 일정과 이후 반복 일정' },
