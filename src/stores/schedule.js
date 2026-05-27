@@ -33,6 +33,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   async function addItem(payload) {
     const res = await axios.post('/api/items', {
       title: payload.title,
+      emoji: payload.emoji ?? null,
       memo: payload.memo,
       startDate: payload.startDate,
       endDate: payload.endDate || payload.startDate,
@@ -46,6 +47,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   async function updateItem(payload) {
     const res = await axios.put(`/api/items/${payload.id}`, {
       title: payload.title,
+      emoji: payload.emoji ?? null,
       memo: payload.memo,
       startDate: payload.startDate,
       endDate: payload.endDate || payload.startDate,
@@ -117,6 +119,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     return {
       id: data.id,
       title: data.title,
+      emoji: data.emoji ?? '',
       memo: data.memo ?? '',
       startDate: data.startDate,
       endDate: data.endDate,

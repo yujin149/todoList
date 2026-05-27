@@ -110,7 +110,8 @@ const rows = computed(() =>
         >
         <div class="textWrap">
           <p class="list" @click="emit('select', item)">
-            {{ item.title }}
+            <span v-if="item.emoji" class="itemEmoji" aria-hidden="true">{{ item.emoji }}</span>
+            <span class="itemTitle">{{ item.title }}</span>
           </p>
           <p class="memo">{{ item.memo }}</p>
           <div class="textInfo">
@@ -159,7 +160,6 @@ const rows = computed(() =>
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap:1rem;
     padding:1rem;
     border:1px solid var(--color-border);
     border-bottom:none;
@@ -180,12 +180,21 @@ const rows = computed(() =>
     margin:0.9rem 0 0;
   }
   .textWrap .list{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
     font-weight:700;
     line-height: 1.4;
     margin:0.8rem 0;
     cursor: pointer;
   }
-  .textWrap .list:hover{
+  .textWrap .list .itemEmoji{
+    flex-shrink: 0;
+    font-size: 1.6rem;
+    line-height: 1;
+    margin-top:0.2rem;
+  }
+  .textWrap .list:hover .itemTitle{
     text-decoration: underline;
     color:var(--color-point);
   }

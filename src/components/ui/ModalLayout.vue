@@ -69,7 +69,7 @@ const open = defineModel('open', { type: Boolean, default: false })
   z-index: 999;
   width: 98%;
   max-width: 44rem;
-  max-height:85vh;
+  max-height:90vh;
   overflow-y: auto;
 }
 .modalInner::-webkit-scrollbar {

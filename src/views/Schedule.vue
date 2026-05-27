@@ -17,6 +17,7 @@ import {
   parseYmd,
   totalSpanDays,
 } from '../utils/dateUtils'
+import { formatScheduleLabel } from '../utils/scheduleDisplay'
 
 const router = useRouter()
 const store = useScheduleStore()
@@ -195,7 +196,7 @@ const weeks = computed(() => {
       sortStart: from,
       priority: clampPriority(it.priority),
       completed: !!it.completed,
-      text: (it.title && String(it.title).trim()) || '일정',
+      text: formatScheduleLabel(it),
       categoryId: it.categoryId ?? null,
       isHoliday: false,
     })
@@ -819,7 +820,7 @@ function onSelectCategory(categoryId) {
   border-radius: 0.2rem;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   box-sizing: border-box;
 }
 
@@ -851,11 +852,11 @@ function onSelectCategory(categoryId) {
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.1;
-  text-align: center;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
+  letter-spacing: -0.5px;
 }
 
 .eventMoreRow {

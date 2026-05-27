@@ -8,6 +8,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import DateRangePicker from '../components/DateRangePicker.vue'
 import CategoryFormModal from '../components/ui/CategoryFormModal.vue'
+import EmojiPickerPopover from '../components/ui/EmojiPickerPopup.vue'
 import ModalLayout from '../components/ui/ModalLayout.vue'
 import { useScheduleStore } from '../stores/schedule'
 import { formatDate, formatDateLabel, parseYmd } from '../utils/dateUtils'
@@ -46,6 +47,9 @@ const priority = ref(priorityOptions[2].value)
 const categoryId = ref('')
 const showCategoryModal = ref(false)
 const titleInputRef = ref(null)
+const inputTitRef = ref(null)        // 제목 줄 DOM (위치 맞추기용)
+const showEmojiPicker = ref(false)   // 팝업 열림 여부
+const titleEmoji = ref('')           // 선택한 이모지 문자
 
 /** ---------- 반복 설정 (로컬 상태) ---------- */
 
@@ -261,8 +265,22 @@ function resetModalScrollTop() {
 }
 
 /** 등록 모드 초기값: 제목 비움, 기간은 selectedDate 또는 오늘 하루 */
+function openEmojiPicker() {
+  showEmojiPicker.value = true
+}
+
+function onEmojiSelect(emoji) {
+  titleEmoji.value = emoji.native ?? ''
+}
+
+function clearTitleEmoji() {
+  titleEmoji.value = ''
+  showEmojiPicker.value = false
+}
+
 function resetForAdd() {
   title.value = ''
+  titleEmoji.value = ''
   memo.value = ''
   const d = props.selectedDate || formatDate(new Date())
   dateRange.value = { start: d, end: d }
@@ -275,6 +293,7 @@ function resetForAdd() {
 function syncFromItem() {
   if (!props.item) return
   title.value = props.item.title ?? ''
+  titleEmoji.value = props.item.emoji ?? ''
   memo.value = props.item.memo ?? ''
   const s = props.item.startDate ?? ''
   const e = props.item.endDate ?? s
@@ -310,7 +329,10 @@ watch([repeatPatternOptions, () => dateRange.value.start], () => {
 watch(
   () => open.value,
   async (isOpen) => {
-    if (!isOpen) return
+    if (!isOpen) {
+      showEmojiPicker.value = false
+      return
+    }
     if (props.item) syncFromItem()
     else resetForAdd()
     await nextTick()
@@ -344,6 +366,7 @@ function submit() {
   // repeat: API 저장용 규칙 객체 (enabled false면 비활성 한 건으로 통일)
   const payload = {
     title: t,
+    emoji: titleEmoji.value || null,
     memo: memo.value.trim(),
     startDate: start,
     endDate: end,
@@ -401,7 +424,28 @@ function close() {
       </li>
       <li>
         <p class="fieldTitle">제목<span class="is-required">*</span></p>
-        <input ref="titleInputRef" v-model="title" type="text">
+        <div ref="inputTitRef" class="inputTit">
+          <span v-if="titleEmoji" class="titleEmoji" aria-hidden="true">{{ titleEmoji }}</span>
+          <input ref="titleInputRef" v-model="title" type="text" placeholder="제목">
+          <button
+            type="button"
+            class="emojiBtn"
+            aria-label="이모지 선택"
+            @click.stop="openEmojiPicker"
+          >
+            <svg class="icon" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19.9315 11.0295C20.0443 9.11146 19.5711 7.20443 18.5748 5.5615C17.5786 3.91857 16.1063 2.6174 14.3533 1.83064C12.6003 1.04388 10.6495 0.808721 8.75977 1.15637C6.87003 1.50402 5.13067 2.41803 3.77248 3.77714C2.41429 5.13625 1.50148 6.87621 1.15516 8.76613C0.808842 10.6561 1.04539 12.6066 1.83342 14.359C2.62145 16.1113 3.92371 17.5827 5.5674 18.5778C7.21109 19.5729 9.11851 20.0446 11.0366 19.9305M14.684 17.8421H21M17.842 14.6843V21M7.31544 8.3685H7.32596M13.6314 8.3685H13.6419M7.84177 13.6316C8.53442 14.3053 9.48391 14.6843 10.4734 14.6843C11.4629 14.6843 12.4124 14.3053 13.1051 13.6316" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <EmojiPickerPopover
+            :open="showEmojiPicker"
+            :anchor="inputTitRef"
+            :can-remove="!!titleEmoji"
+            @select="onEmojiSelect"
+            @remove="clearTitleEmoji"
+            @close="showEmojiPicker = false"
+          />
+        </div>
       </li>
       <li>
         <p class="fieldTitle">메모</p>
@@ -617,6 +661,42 @@ function close() {
   font-size: 1.5rem;
   font-weight: 700;
 }
+
+.inputTit{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border:1px solid var(--color-border);
+  border-radius: 0.4rem;
+}
+.inputTit input{
+  flex: 1;
+  min-width: 0;
+  border:none;
+}
+.inputTit .titleEmoji{
+  flex-shrink: 0;
+  padding-left: 1rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+.inputTit .emojiBtn{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width:4rem;
+  height:4rem;
+  cursor: pointer;
+}
+.inputTit .emojiBtn .icon{
+  width:2rem;
+  height:2rem;
+  color:var(--color-gray-500);
+}
+.inputTit .emojiBtn:hover .icon{
+  color:var(--color-point);
+}
+
 
 .formList li .categoryList {
   display: flex;
