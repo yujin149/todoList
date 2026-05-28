@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue'
-import { REPEAT_SCOPE_DELETE, REPEAT_SCOPE_UPDATE } from '../../utils/repeatMapper'
+import {
+  REPEAT_SCOPE_DELETE,
+  getRepeatScopeUpdateOptions,
+} from '../../utils/repeatMapper'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
@@ -11,6 +14,11 @@ const props = defineProps({
     default: 'update',
     validator: (v) => ['update', 'delete'].includes(v),
   },
+  /** 수정 모드에서 THIS_ONLY 노출 여부 (반복 규칙 변경 시 false) */
+  includeThisOnly: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
@@ -18,7 +26,10 @@ const emit = defineEmits(['confirm', 'cancel'])
 const title = computed(() => (props.mode === 'delete' ? '이 일정을 삭제할까요?' : '저장'))
 
 const options = computed(() =>
-  props.mode === 'delete' ? REPEAT_SCOPE_DELETE : REPEAT_SCOPE_UPDATE,
+  props.mode === 'delete'
+    ? REPEAT_SCOPE_DELETE
+    // update 모드 옵션은 호출부(TodoFormModal)의 조건 분기를 따른다.
+    : getRepeatScopeUpdateOptions({ includeThisOnly: props.includeThisOnly }),
 )
 
 function select(value) {

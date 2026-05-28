@@ -38,6 +38,8 @@ const isRepeatItem = computed(() => isRecurringScheduleItem(props.item))
 
 const showScopePicker = ref(false)
 const scopePickerMode = ref('update')
+// 반복 규칙 변경 여부에 따라 update 범위에서 THIS_ONLY 노출을 제어한다.
+const scopePickerIncludeThisOnly = ref(true)
 const pendingScopeAction = ref(null)
 const pendingPayload = ref(null)
 
@@ -330,6 +332,36 @@ function syncFromItem() {
   }
 }
 
+function normalizeRepeatForCompare(repeat) {
+  // 비활성(반복안함)은 무조건 { enabled:false }
+  if (!repeat?.enabled || !repeat.frequency || repeat.frequency === 'none') {
+    return { enabled: false }
+  }
+
+  const frequency = repeat.frequency
+  // 반복 간격 비교
+  const repeatIntervalValue = Math.max(1, Number(repeat.interval?.[frequency]) || 1)
+  const endType = repeat.endType ?? 'forever'
+
+  // 활성 상태일 때 비교에 필요한 필드만 새 객체로 만들어서 반환
+  return {
+    enabled: true,
+    frequency,
+    interval: repeatIntervalValue,
+    monthPattern: ['month', 'year'].includes(frequency) ? repeat.monthPattern ?? 'dayOfMonth' : null,
+    endType,
+    count: endType === 'count' ? Math.max(1, Number(repeat.count) || 1) : null,
+    endDate: endType === 'date' ? repeat.endDate ?? null : null,
+  }
+}
+
+function hasRepeatSettingChanged(nextRepeat) {
+  // 범위 선택 조건 판단을 위해 원본/수정값을 같은 포맷으로 비교
+  const originalRepeat = normalizeRepeatForCompare(props.item?.repeat)
+  const updatedRepeat = normalizeRepeatForCompare(nextRepeat)
+  return JSON.stringify(originalRepeat) !== JSON.stringify(updatedRepeat)
+}
+
 watch([repeatPatternOptions, () => dateRange.value.start], () => {
   if (showRepeatPatternOptions.value) ensureValidRepeatMonthPattern()
 })
@@ -398,6 +430,8 @@ function submit() {
   }
   if (props.item) {
     if (isRepeatItem.value) {
+      // 반복 규칙이 바뀌면 THIS_ONLY를 숨기고, 아니면 단건 수정을 허용.
+      scopePickerIncludeThisOnly.value = !hasRepeatSettingChanged(payload.repeat)
       pendingPayload.value = { id: props.item.id, ...payload }
       pendingScopeAction.value = 'update'
       scopePickerMode.value = 'update'
@@ -414,6 +448,7 @@ function submit() {
 function clearPendingScope() {
   pendingScopeAction.value = null
   pendingPayload.value = null
+  scopePickerIncludeThisOnly.value = true
 }
 
 function onScopeConfirm(updateType) {
@@ -688,6 +723,7 @@ function close() {
   <RepeatScopePicker
     v-model:open="showScopePicker"
     :mode="scopePickerMode"
+    :include-this-only="scopePickerIncludeThisOnly"
     @confirm="onScopeConfirm"
     @cancel="onScopeCancel"
   />

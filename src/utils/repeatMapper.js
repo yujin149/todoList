@@ -115,6 +115,16 @@ export const REPEAT_SCOPE_UPDATE = [
   { value: 'ALL', label: '연관된 모든 일정' },
 ]
 
+/**
+ * 반복 일정 수정 범위 옵션
+ * - includeThisOnly=true  : 단건 수정 허용(반복 외 필드만 수정 등)
+ * - includeThisOnly=false : 반복 규칙 자체 변경 시 단건 수정 비노출
+ */
+export function getRepeatScopeUpdateOptions({ includeThisOnly = true } = {}) {
+  if (includeThisOnly) return REPEAT_SCOPE_UPDATE
+  return REPEAT_SCOPE_UPDATE.filter((scope) => scope.value !== 'THIS_ONLY')
+}
+
 export const REPEAT_SCOPE_DELETE = [
   { value: 'THIS_ONLY', label: '이 일정을 휴지통으로 이동' },
   { value: 'FROM_THIS', label: '이 일정과 이후 반복 일정 모두 삭제', danger: true },
