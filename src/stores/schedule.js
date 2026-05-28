@@ -24,16 +24,19 @@ export const useScheduleStore = defineStore('schedule', () => {
     { color: '#eb2f96', bgColor: 'rgba(235, 47, 150, 0.08)' },
   ]
 
+  // 서버에서 전체 일정 목록을 가져와 items 갱신
   async function fetchItems() {
     const res = await axios.get('/api/items')
     items.value = res.data.map(toClientItem)
   }
 
+  // 서버에서 카테고리 목록을 가져와 categories 갱신
   async function fetchCategories() {
     const res = await axios.get('/api/categories')
     categories.value = res.data
   }
 
+  // 새 일정을 서버에 등록하고 로컬 목록에 추가
   async function addItem(payload) {
     const res = await axios.post('/api/items', buildScheduleItemRequest(payload))
     const created = Array.isArray(res.data) ? res.data : [res.data]
@@ -50,6 +53,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // 서버 일정을 수정하고 로컬 목록에서 해당 항목 교체
   async function updateItem(payload) {
     const updateType = payload.updateType ?? 'THIS_ONLY'
     const res = await axios.put(`/api/items/${payload.id}`, buildScheduleItemRequest(payload))
@@ -61,6 +65,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     if (idx !== -1) items.value[idx] = toClientItem(res.data)
   }
 
+  // 서버에서 일정을 삭제하고 로컬 목록에서 제거
   async function deleteItem(id, updateType = 'THIS_ONLY') {
     await axios.delete(`/api/items/${id}`, { params: { updateType } })
     if (updateType === 'THIS_ONLY') {
@@ -70,6 +75,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // 완료 상태를 서버에 반영하고 로컬 항목 갱신
   async function toggleComplete(payload) {
     const res = await axios.patch(`/api/items/${payload.id}/complete`, {
       completed: payload.completed,
@@ -78,6 +84,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     if (idx !== -1) items.value[idx] = toClientItem(res.data)
   }
 
+  // 최대 개수와 중복 검사 후 카테고리를 서버에 등록
   async function addCategory(name, color, bgColor) {
     if (categories.value.length >= MAX_CATEGORIES) return { ok: false, reason: 'max' }
     const exists = categories.value.some((c) => c.name === name.trim())
@@ -95,6 +102,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // 카테고리 정보를 서버에 수정하고 로컬 목록 교체
   async function updateCategory(payload) {
     try {
       const res = await axios.put(`/api/categories/${payload.id}`, {
@@ -110,6 +118,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // 카테고리 삭제 후 연결된 일정을 로컬에서 제거
   async function deleteCategory(categoryId) {
     try {
       await axios.delete(`/api/categories/${categoryId}`)
@@ -121,6 +130,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // API 응답 데이터를 클라이언트 모델 형태로 변환
   function toClientItem(data) {
     const repeatFromApi = fromApiRepeatRule(data)
     const cacheKey = data?.repeatRuleId != null ? String(data.repeatRuleId) : null
