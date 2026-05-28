@@ -66,6 +66,16 @@ const selectedYearMonth = computed(() => {
   return { year: d.getFullYear(), month: d.getMonth() + 1 }
 })
 
+/** 캘린더 복귀 시 보고 있던 날짜의 월로 이동 */
+const calendarBackTo = computed(() => {
+  const { year, month } = selectedYearMonth.value
+  if (!year || !month) return { name: 'schedule' }
+  return {
+    name: 'schedule',
+    query: { month: `${year}-${String(month).padStart(2, '0')}` },
+  }
+})
+
 const { holidaysOn } = useHolidays(selectedYearMonth)
 
 
@@ -169,7 +179,7 @@ watch(isFormModalOpen, (open) => {
     <!-- 헤더: 캘린더 + 제목 + 일정 추가 -->
     <div class="titleWrap">
       <div class="titleLine">
-        <RouterLink to="/" class="backToCal" title="캘린더로 이동">
+        <RouterLink :to="calendarBackTo" class="backToCal" title="캘린더로 이동">
           <svg
             class="iconBack"
             viewBox="0 0 16 14"

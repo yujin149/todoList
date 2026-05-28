@@ -5,7 +5,7 @@
  * - 일정은 Pinia useScheduleStore 와 ScheduleListPage 가 공유
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useScheduleStore } from '../stores/schedule'
 import { useHolidays } from '../composables/useHolidays'
 import Menu from '../components/ui/menu.vue'
@@ -19,6 +19,7 @@ import {
 } from '../utils/dateUtils'
 import { formatScheduleLabel } from '../utils/scheduleDisplay'
 
+const route = useRoute()
 const router = useRouter()
 const store = useScheduleStore()
 const monthGridRef = ref(null)
@@ -28,9 +29,32 @@ const isMenuOpen = ref(false)
 const selectedCategoryId = ref('all')
 let gridResizeObserver = null
 
+/**
+ * 일정 목록(ScheduleListPage)에서 캘린더로 돌아올 때 ?month=YYYY-MM 쿼리로 보고 있던 달을 복원한다.
+ * 쿼리가 없거나 형식이 맞지 않으면 오늘 달을 쓴다.
+ */
+/** 라우트 query.month(YYYY-MM) 파싱 — 유효하지 않으면 null */
+function parseMonthQuery(raw) {
+  if (!raw || typeof raw !== 'string' || !/^\d{4}-\d{2}$/.test(raw)) return null
+  const [yy, mm] = raw.split('-').map(Number)
+  if (!yy || mm < 1 || mm > 12) return null
+  return { year: yy, month: mm }
+}
+
+const initialMonth = parseMonthQuery(route.query.month)
 const now = new Date()
-const viewYear = ref(now.getFullYear())
-const viewMonth = ref(now.getMonth() + 1)
+const viewYear = ref(initialMonth?.year ?? now.getFullYear())
+const viewMonth = ref(initialMonth?.month ?? now.getMonth() + 1)
+
+/** query.month 변경 시 표시 월 동기화(같은 라우트에서 쿼리만 바뀌는 경우) */
+function applyMonthFromRoute() {
+  const parsed = parseMonthQuery(route.query.month)
+  if (!parsed) return
+  viewYear.value = parsed.year
+  viewMonth.value = parsed.month
+}
+
+watch(() => route.query.month, applyMonthFromRoute)
 const viewYearMonth = computed(() => ({ year: viewYear.value, month: viewMonth.value }))
 const { holidayNames } = useHolidays(viewYearMonth)
 
