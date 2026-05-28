@@ -44,6 +44,7 @@ const filteredItems = computed(() => {
   if (selectedCategoryId.value === 'all') return store.items
   return store.items.filter((item) => item.categoryId === selectedCategoryId.value)
 })
+// 카테고리 ID로 스토어에서 항목 조회 후 색상 스타일 반환
 function getCategoryStyle(categoryId) {
   const category = store.categories.find((item) => String(item.id) === String(categoryId))
   if (!category) {
@@ -66,12 +67,13 @@ const HOLIDAY_BAR_STYLE = {
   backgroundColor: 'rgba(217, 54, 62, 0.1)',
 }
 
+// 공휴일 여부에 따라 고정 스타일 또는 카테고리 스타일 반환
 function getEventBarStyle(seg) {
   if (seg.isHoliday) return HOLIDAY_BAR_STYLE
   return getCategoryStyle(seg.categoryId)
 }
 
-/** 같은 name 이고 날짜가 하루씩 이어지면 하나의 구간으로 합침 (추석 24~26 등) */
+// 날짜 오름차순 정렬 후 이름이 같고 하루 연속이면 구간 병합
 function mergeConsecutiveHolidays(holidayMap) {
   const entries = [...holidayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   const merged = []
@@ -90,6 +92,7 @@ function mergeConsecutiveHolidays(holidayMap) {
   return merged
 }
 
+// 기간 긴 순으로 정렬 후 겹치지 않는 레인 인덱스를 각 이벤트에 배정
 function assignGlobalLanes(events) {
   const ordered = [...events].sort(
     (a, b) =>
@@ -120,6 +123,7 @@ function assignGlobalLanes(events) {
   return { laneById, laneCount: lanes.length }
 }
 
+// eventStack 높이와 레인 높이를 측정해 표시 가능한 레인 수 계산
 function recalcVisibleLaneCapacity() {
   const root = monthGridRef.value
   if (!root) return
@@ -290,10 +294,12 @@ watch(
   () => nextTick(() => recalcVisibleLaneCapacity()),
 )
 
+// 날짜가 현재 뷰의 연·월과 일치하는지 확인
 function isInViewMonth(d) {
   return d.getFullYear() === viewYear.value && d.getMonth() + 1 === viewMonth.value
 }
 
+// 요일 인덱스를 CSS 클래스명으로 변환
 function dowClass(d) {
   const dow = d.getDay()
   if (dow === 0) return 'dow-sun'
@@ -301,10 +307,12 @@ function dowClass(d) {
   return 'dow-mid'
 }
 
+// 해당 날짜가 공휴일 목록에 포함되는지 확인
 function isHoliday(iso) {
   return holidayNames.value.has(iso)
 }
 
+// 1월이면 전년 12월로, 아니면 이전 달로 이동
 function onPrevMonth() {
   if (viewMonth.value <= 1) {
     viewYear.value -= 1
@@ -314,6 +322,7 @@ function onPrevMonth() {
   }
 }
 
+// 12월이면 다음 해 1월로, 아니면 다음 달로 이동
 function onNextMonth() {
   if (viewMonth.value >= 12) {
     viewYear.value += 1
@@ -323,6 +332,7 @@ function onNextMonth() {
   }
 }
 
+// showPicker 지원 여부에 따라 네이티브 월 선택기 또는 포커스로 열기
 function openMonthPicker() {
   if (!monthInputRef.value) return
   if (typeof monthInputRef.value.showPicker === 'function') {
@@ -332,6 +342,7 @@ function openMonthPicker() {
   monthInputRef.value.focus()
 }
 
+// YYYY-MM 형식 파싱 후 뷰 연·월 갱신
 function onMonthInputChange(e) {
   const value = e.target.value
   if (!value || !/^\d{4}-\d{2}$/.test(value)) return
@@ -341,12 +352,14 @@ function onMonthInputChange(e) {
   viewMonth.value = mm
 }
 
+// 오늘 날짜의 연·월로 뷰 초기화
 function goToday() {
   const t = new Date()
   viewYear.value = t.getFullYear()
   viewMonth.value = t.getMonth() + 1
 }
 
+// 다른 달 날짜 클릭 시 뷰 월을 맞추고 해당 날짜 상세 페이지로 이동
 function onDayCell(d) {
   const iso = formatDate(d)
   if (d.getFullYear() !== viewYear.value || d.getMonth() + 1 !== viewMonth.value) {
@@ -356,14 +369,17 @@ function onDayCell(d) {
   router.push({ name: 'schedule-day', params: { date: iso } })
 }
 
+// 사이드 메뉴 열기
 function openMenu() {
   isMenuOpen.value = true
 }
 
+// 사이드 메뉴 닫기
 function closeMenu() {
   isMenuOpen.value = false
 }
 
+// 선택한 카테고리로 필터 적용
 function onSelectCategory(categoryId) {
   selectedCategoryId.value = categoryId
 }
