@@ -242,6 +242,17 @@ const weeks = computed(() => {
         }
       }
       if (startCol < 0) continue
+      // 기본은 "이번 줄이 전부 바깥 달(out)"이라고 가정
+      let isOut = true
+
+      for (let i = startCol; i <= endCol; i++) {
+        // 현재 달 날짜가 하나라도 있으면
+        // out 상태 해제
+        if (isInViewMonth(chunk[i])) {
+          isOut = false
+          break
+        }
+      }
       segs.push({
         id: ev.id,
         startCol,
@@ -255,6 +266,7 @@ const weeks = computed(() => {
         completed: ev.completed,
         categoryId: ev.categoryId,
         isHoliday: !!ev.isHoliday,
+        isOut,
       })
     }
     segs.sort((a, b) => a.laneIndex - b.laneIndex || a.startCol - b.startCol || a.id - b.id)
@@ -514,6 +526,7 @@ function onSelectCategory(categoryId) {
                 :class="{
                   'evBar--done': seg.completed && !seg.isHoliday,
                   'evBar--holiday': seg.isHoliday,
+                  'evBar--out': seg.isOut,
                 }"
                 :style="{
                   gridColumn: `${seg.startCol + 1} / ${seg.endCol + 2}`,
@@ -838,6 +851,10 @@ function onSelectCategory(categoryId) {
   align-items: center;
   justify-content: flex-start;
   box-sizing: border-box;
+}
+
+.evBar--out {
+  opacity: 0.55;
 }
 
 .evBar--done {
