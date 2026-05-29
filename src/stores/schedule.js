@@ -56,9 +56,16 @@ export const useScheduleStore = defineStore('schedule', () => {
   // 서버 일정을 수정하고 로컬 목록에서 해당 항목 교체
   async function updateItem(payload) {
     const updateType = payload.updateType ?? 'THIS_ONLY'
+    const existing = items.value.find((i) => i.id === payload.id)
+    // 단건 → 반복 전환 시 서버가 여러 건을 만들지만 응답은 1건뿐이므로 전체 재조회
+    const singleToRepeat = !existing?.repeatRuleId && payload?.repeat?.enabled
     const res = await axios.put(`/api/items/${payload.id}`, buildScheduleItemRequest(payload))
-    if (updateType !== 'THIS_ONLY') {
+    if (updateType !== 'THIS_ONLY' || singleToRepeat) {
       await fetchItems()
+      if (singleToRepeat && payload?.repeat?.enabled) {
+        const ruleId = res.data?.repeatRuleId
+        if (ruleId != null) repeatRuleCache.value[String(ruleId)] = payload.repeat
+      }
       return
     }
     const idx = items.value.findIndex((i) => i.id === payload.id)
